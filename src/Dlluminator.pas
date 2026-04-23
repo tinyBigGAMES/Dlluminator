@@ -1,4 +1,4 @@
-﻿{===============================================================================
+{===============================================================================
    ___  _ _            _           _
   |   \| | |_  _ _ __ (_)_ _  __ _| |_ ___ _ _ ™
   | |) | | | || | '  \| | ' \/ _` |  _/ _ | '_|
@@ -68,6 +68,11 @@
  -----------------------------------------------------------------------------
  >>> CHANGELOG <<<
 
+  Version 0.2.0
+ -------------
+  - Added overloaded LoadLibrary with AModuleName parameter for dependency
+    resolution between memory-loaded DLLs
+
  Version 0.1.0
  -------------
   - Initial release
@@ -104,7 +109,7 @@ const
   /// <remarks>
   /// This is incremented for smaller, incremental improvements or updates.
   /// </remarks>
-  DLLUMINATOR_MINOR_VERSION = '1';
+  DLLUMINATOR_MINOR_VERSION = '2';
 
   /// <summary>
   /// Patch version of the Dlluminator library.
@@ -168,7 +173,337 @@ const
 /// <seealso>
 ///   <c>FreeLibrary</c>, <c>GetProcAddress</c>
 /// </seealso>
-function LoadLibrary(const AData: Pointer; const ASize: NativeUInt): THandle;
+function LoadLibrary(const AData: Pointer; const ASize: NativeUInt): THandle; overload;
+
+/// <summary>
+///   Loads a DLL from memory and registers it under a specified module name,
+///   enabling dependency resolution between memory-loaded DLLs.
+/// </summary>
+/// <param name="AData">
+///   Pointer to the raw DLL binary data in memory.
+/// </param>
+/// <param name="ASize">
+///   Size in bytes of the DLL data pointed to by <c>AData</c>.
+/// </param>
+/// <param name="AModuleName">
+///   The module name to register (e.g., <c>'MyLib.dll'</c>). This is the
+///   name that other DLLs will reference in their import tables when they
+///   depend on this module. Must include the <c>.dll</c> extension and match
+///   the exact name used in the dependent DLL's <c>external</c> declaration.
+/// </param>
+/// <returns>
+///   Returns an <c>HMODULE</c> handle if successful, or <c>0</c> on failure.
+///   Use <c>GetProcAddress</c> with the returned handle to resolve exports.
+///   Call <c>FreeLibrary</c> when the module is no longer needed.
+/// </returns>
+/// <remarks>
+///   <para>
+///     <b>Loading Order:</b> Dependencies must be loaded <b>before</b> the
+///     DLLs that import from them. For example, if DllB imports from DllA,
+///     load DllA first with its registered name, then load DllB:
+///   </para>
+///   <code>
+///     // Step 1: Load the dependency first and register its name.
+///     DllAHandle := LoadLibrary(DllAData, DllASize, 'DllA.dll');
+///
+///     // Step 2: Load the dependent DLL. Its import table references
+///     // 'DllA.dll', which is resolved against the registered module.
+///     DllBHandle := LoadLibrary(DllBData, DllBSize, 'DllB.dll');
+///
+///     // Both are now fully functional — DllB can call DllA's exports.
+///     MyFunc := GetProcAddress(DllBHandle, 'MyFunction');
+///   </code>
+///   <para>
+///     <b>How It Works:</b> When the loaded DLL has dependencies on previously
+///     registered modules, this function uses manual import resolution. The
+///     DLL is mapped into memory with relocations applied but without the
+///     Windows loader resolving imports. Dlluminator then walks the DLL's
+///     import table, resolving each imported function — using the internal
+///     module registry for memory-loaded DLLs and the standard Windows API
+///     for system DLLs. Finally, the DLL's entry point (DllMain) is called.
+///   </para>
+///   <para>
+///     This approach is required because Windows 11 24H2 changed internal
+///     loader data structures, making post-hoc module name patching
+///     insufficient for the loader's own import resolver.
+///   </para>
+/// </remarks>
+function LoadLibrary(const AData: Pointer; const ASize: NativeUInt;
+  const AModuleName: string): THandle; overload;
+
+/// <summary>
+///   Registers raw DLL binary data for deferred loading into the internal data registry.
+///   This function does NOT load the DLL — it only stores a reference to the data so that
+///   it can be loaded later by <c>LoadLibrary(AModuleName)</c> or <c>LoadAll</c>.
+/// </summary>
+/// <param name="AModuleName">
+///   The module name to associate with this DLL data (e.g., <c>'MyLib.dll'</c>). This name
+///   must match the exact name used in dependent DLLs' <c>external</c> declarations, including
+///   the <c>.dll</c> extension. The name is case-insensitive.
+/// </param>
+/// <param name="AData">
+///   Pointer to the memory block containing the complete raw binary data of the DLL.
+///   The caller retains ownership of this memory and must ensure it remains valid and
+///   unmodified until <c>LoadLibrary(AModuleName)</c> or <c>LoadAll</c> is called for this
+///   module. After loading completes, the original data is no longer needed.
+/// </param>
+/// <param name="ASize">
+///   The size, in bytes, of the DLL binary data pointed to by <c>AData</c>. Must accurately
+///   reflect the size of the complete DLL image.
+/// </param>
+/// <remarks>
+///   <para>
+///     This is the pointer-based registration overload. Use it when you already have the DLL
+///     data in memory (e.g., from a custom resource loader, decryption routine, or network
+///     download). For DLLs embedded as <c>RT_RCDATA</c> resources in the executable, the
+///     resource-based overload <c>RegisterDllData(AModuleName, AResName)</c> is more convenient.
+///   </para>
+///   <para>
+///     Multiple DLLs can be registered in any order — dependency ordering is resolved
+///     automatically when <c>LoadLibrary(AModuleName)</c> or <c>LoadAll</c> is called.
+///     If a module with the same name is already registered, its data reference is updated.
+///   </para>
+///   <para>
+///     The data registry has a fixed capacity of 64 entries. If the registry is full,
+///     the registration is silently ignored and a debug message is emitted via
+///     <c>OutputDebugString</c>.
+///   </para>
+/// </remarks>
+/// <preconditions>
+///   <list type="bullet">
+///     <item><description><c>AData</c> must point to a valid, complete Win64 PE DLL image.</description></item>
+///     <item><description><c>ASize</c> must accurately reflect the size of the data at <c>AData</c>.</description></item>
+///     <item><description>The memory at <c>AData</c> must remain valid until the module is loaded.</description></item>
+///   </list>
+/// </preconditions>
+/// <postconditions>
+///   <list type="bullet">
+///     <item><description>The module name and data reference are stored in the internal data registry.</description></item>
+///     <item><description>No DLL loading, mapping, or import resolution occurs.</description></item>
+///   </list>
+/// </postconditions>
+/// <seealso>
+///   <c>RegisterDllData(AModuleName, AResName)</c>, <c>LoadLibrary(AModuleName)</c>, <c>LoadAll</c>
+/// </seealso>
+procedure RegisterDllData(const AModuleName: string; const AData: Pointer;
+  const ASize: NativeUInt); overload;
+
+/// <summary>
+///   Registers a DLL for deferred loading by referencing an embedded <c>RT_RCDATA</c>
+///   resource in the executable. This function does NOT load the DLL — it only stores the
+///   resource name so that the resource can be read and loaded on demand when
+///   <c>LoadLibrary(AModuleName)</c> or <c>LoadAll</c> is called.
+/// </summary>
+/// <param name="AModuleName">
+///   The module name to associate with this DLL (e.g., <c>'MyLib.dll'</c>). This name
+///   must match the exact name used in dependent DLLs' <c>external</c> declarations, including
+///   the <c>.dll</c> extension. The name is case-insensitive.
+/// </param>
+/// <param name="AResName">
+///   The name of the <c>RT_RCDATA</c> resource containing the DLL binary data, as it appears
+///   in the executable's resource table. This can be a descriptive name or an obfuscated
+///   identifier (e.g., a GUID-like string) to avoid exposing DLL names in the binary.
+/// </param>
+/// <remarks>
+///   <para>
+///     This is the resource-based registration overload. It validates that the specified
+///     resource exists at registration time via <c>FindResource</c>, but does not read or
+///     copy the resource data. When <c>LoadLibrary(AModuleName)</c> or <c>LoadAll</c> is
+///     called, a <c>TResourceStream</c> is created on demand to read the resource data,
+///     the DLL is loaded from that data, and the stream is freed immediately afterwards.
+///     This avoids holding resource data in memory longer than necessary.
+///   </para>
+///   <para>
+///     Multiple DLLs can be registered in any order — dependency ordering is resolved
+///     automatically when <c>LoadLibrary(AModuleName)</c> or <c>LoadAll</c> is called.
+///     If a module with the same name is already registered, its resource reference is updated.
+///   </para>
+///   <code>
+///     // Register DLLs from resources (order doesn't matter).
+///     RegisterDllData('DllA.dll', 'a1b2c3d4e5f6478890abcdef12345678');
+///     RegisterDllData('DllB.dll', 'f8e7d6c5b4a3219087654321fedcba98');
+///
+///     // Load everything — dependencies resolved automatically.
+///     LoadAll();
+///   </code>
+///   <para>
+///     The data registry has a fixed capacity of 64 entries. If the registry is full,
+///     the registration is silently ignored and a debug message is emitted via
+///     <c>OutputDebugString</c>.
+///   </para>
+/// </remarks>
+/// <exception>
+///   If the resource specified by <c>AResName</c> does not exist in the executable,
+///   the registration is silently skipped and a debug message is emitted. No exception
+///   is raised. The subsequent <c>LoadLibrary</c> or <c>LoadAll</c> call will fail for
+///   this module with <c>ERROR_FILE_NOT_FOUND</c>.
+/// </exception>
+/// <preconditions>
+///   <list type="bullet">
+///     <item><description>The resource identified by <c>AResName</c> must exist as <c>RT_RCDATA</c> in the current module (<c>HInstance</c>).</description></item>
+///     <item><description>The resource must contain a valid, complete Win64 PE DLL image.</description></item>
+///   </list>
+/// </preconditions>
+/// <postconditions>
+///   <list type="bullet">
+///     <item><description>The module name and resource name are stored in the internal data registry.</description></item>
+///     <item><description>No DLL loading, resource reading, mapping, or import resolution occurs.</description></item>
+///   </list>
+/// </postconditions>
+/// <seealso>
+///   <c>RegisterDllData(AModuleName, AData, ASize)</c>, <c>LoadLibrary(AModuleName)</c>, <c>LoadAll</c>
+/// </seealso>
+procedure RegisterDllData(const AModuleName: string;
+  const AResName: string); overload;
+
+/// <summary>
+///   Loads a DLL by name from the internal data registry, automatically resolving
+///   and loading all dependencies in the correct order before loading the requested module.
+/// </summary>
+/// <param name="AModuleName">
+///   The module name to load (e.g., <c>'MyLib.dll'</c>). This must match a name previously
+///   registered via <c>RegisterDllData</c>. The name is case-insensitive.
+/// </param>
+/// <returns>
+///   Returns an <c>HMODULE</c> handle to the loaded DLL module if successful, or <c>0</c>
+///   on failure. If the module was already loaded by a previous call, the existing handle
+///   is returned immediately without reloading. The returned handle can be used with
+///   <c>GetProcAddress</c> and <c>FreeLibrary</c>.
+/// </returns>
+/// <remarks>
+///   <para>
+///     <b>Automatic Dependency Resolution:</b> This function parses the raw PE import table
+///     of the requested DLL to discover its dependencies. For each dependency that is also
+///     present in the data registry but not yet loaded, it recursively calls itself to load
+///     that dependency first (depth-first topological sort). Dependencies not found in the
+///     data registry are assumed to be system DLLs and are resolved later by
+///     <c>ManualResolveImports</c> via <c>GetModuleHandle</c> / standard <c>LoadLibrary</c>.
+///   </para>
+///   <para>
+///     <b>Resource-Based Entries:</b> For modules registered via the resource-based
+///     <c>RegisterDllData(AModuleName, AResName)</c> overload, a <c>TResourceStream</c> is
+///     created on demand to read the resource data, used for import parsing and loading,
+///     then freed immediately. The resource data is not held in memory beyond what is needed.
+///   </para>
+///   <para>
+///     <b>Circular Dependency Protection:</b> An internal stack tracks which modules are
+///     currently in the process of being loaded. If a circular dependency is detected
+///     (e.g., A imports B, B imports A), the function fails immediately with
+///     <c>ERROR_CIRCULAR_DEPENDENCY</c> (1059) and returns <c>0</c>.
+///   </para>
+///   <para>
+///     <b>Idempotent:</b> Calling this function for an already-loaded module is safe and
+///     returns the existing handle from the module registry without any side effects.
+///     This makes it suitable for use after <c>LoadAll</c> to retrieve handles.
+///   </para>
+///   <code>
+///     // Register DLLs (order doesn't matter).
+///     RegisterDllData('DllA.dll', ResNameDllA());
+///     RegisterDllData('DllB.dll', ResNameDllB());
+///
+///     // Load DllB — DllA is loaded automatically as a dependency.
+///     DllBHandle := LoadLibrary('DllB.dll');
+///
+///     // Or retrieve a handle after LoadAll has already loaded everything.
+///     DllAHandle := LoadLibrary('DllA.dll'); // Returns existing handle.
+///   </code>
+/// </remarks>
+/// <exception>
+///   If the function fails, the Windows error code can be retrieved using <c>GetLastError</c>.
+///   Possible error codes include:
+///   <list type="bullet">
+///     <item><description><c>ERROR_FILE_NOT_FOUND</c> — The module name was not found in the data registry.</description></item>
+///     <item><description><c>ERROR_CIRCULAR_DEPENDENCY</c> (1059) — A circular dependency chain was detected.</description></item>
+///     <item><description>Other codes may be set by the underlying <c>LoadLibrary(AData, ASize, AModuleName)</c> call if mapping or import resolution fails.</description></item>
+///   </list>
+/// </exception>
+/// <preconditions>
+///   <list type="bullet">
+///     <item><description>The module must have been previously registered via <c>RegisterDllData</c>.</description></item>
+///     <item><description>For pointer-based registrations, the data pointer must still be valid.</description></item>
+///     <item><description>For resource-based registrations, the resource must still be accessible.</description></item>
+///   </list>
+/// </preconditions>
+/// <postconditions>
+///   <list type="bullet">
+///     <item><description>If successful, the DLL and all its registered dependencies are loaded into the process's address space with DllMain called for process attach.</description></item>
+///     <item><description>The module is registered in the internal module registry and can be found by subsequent calls or by other DLLs' import tables.</description></item>
+///     <item><description><c>FreeLibrary</c> should be called on the returned handle when the DLL is no longer needed.</description></item>
+///   </list>
+/// </postconditions>
+/// <seealso>
+///   <c>RegisterDllData</c>, <c>LoadAll</c>, <c>GetProcAddress</c>, <c>FreeLibrary</c>
+/// </seealso>
+function LoadLibrary(const AModuleName: string): THandle; overload;
+
+/// <summary>
+///   Loads all DLLs previously registered via <c>RegisterDllData</c> in the correct
+///   dependency order. This is a convenience function that iterates the entire data
+///   registry and calls <c>LoadLibrary(AModuleName)</c> for each registered module.
+/// </summary>
+/// <returns>
+///   Returns <c>True</c> if all registered DLLs were loaded successfully. Returns
+///   <c>False</c> if any module fails to load, in which case loading stops immediately
+///   at the first failure. Modules that were successfully loaded before the failure
+///   remain loaded.
+/// </returns>
+/// <remarks>
+///   <para>
+///     <b>Dependency ordering is automatic.</b> Because <c>LoadLibrary(AModuleName)</c>
+///     recursively loads dependencies before the requested module, and skips modules that
+///     are already loaded, the iteration order through the data registry does not matter.
+///     The correct topological loading order is determined at runtime by parsing each
+///     DLL's import table.
+///   </para>
+///   <para>
+///     After <c>LoadAll</c> completes successfully, handles to individual modules can be
+///     retrieved by calling <c>LoadLibrary(AModuleName)</c> which returns the existing
+///     handle from the module registry without reloading.
+///   </para>
+///   <code>
+///     // Register DLLs from resources (any order).
+///     RegisterDllData('DllC.dll', ResNameDllC());
+///     RegisterDllData('DllA.dll', ResNameDllA());
+///     RegisterDllData('DllB.dll', ResNameDllB());
+///
+///     // Load everything. If DllC depends on DllB, which depends on DllA,
+///     // they are loaded in order: DllA, DllB, DllC — regardless of
+///     // registration order.
+///     if not LoadAll() then
+///     begin
+///       WriteLn('Failed to load DLLs.');
+///       Halt(1);
+///     end;
+///
+///     // Retrieve handles for individual modules.
+///     DllCHandle := LoadLibrary('DllC.dll');
+///     MyFunc := GetProcAddress(DllCHandle, 'MyFunction');
+///   </code>
+/// </remarks>
+/// <exception>
+///   If any module fails to load, the error code from the failed <c>LoadLibrary(AModuleName)</c>
+///   call can be retrieved using <c>GetLastError</c>. A debug message identifying the failed
+///   module is emitted via <c>OutputDebugString</c>.
+/// </exception>
+/// <preconditions>
+///   <list type="bullet">
+///     <item><description>At least one module must have been registered via <c>RegisterDllData</c>.</description></item>
+///     <item><description>All registered data pointers (for pointer-based registrations) must still be valid.</description></item>
+///     <item><description>All registered resources (for resource-based registrations) must still be accessible.</description></item>
+///     <item><description>The dependency graph must be acyclic (no circular dependencies).</description></item>
+///   </list>
+/// </preconditions>
+/// <postconditions>
+///   <list type="bullet">
+///     <item><description>If <c>True</c> is returned, every registered DLL is loaded, initialized (DllMain called), and available in the module registry.</description></item>
+///     <item><description>Handles can be retrieved via <c>LoadLibrary(AModuleName)</c> or used with <c>GetProcAddress</c>.</description></item>
+///     <item><description><c>FreeLibrary</c> should be called for each loaded module when no longer needed, in reverse dependency order.</description></item>
+///   </list>
+/// </postconditions>
+/// <seealso>
+///   <c>RegisterDllData</c>, <c>LoadLibrary(AModuleName)</c>, <c>GetProcAddress</c>, <c>FreeLibrary</c>
+/// </seealso>
+function LoadAll(): Boolean;
 
 implementation
 
@@ -177,7 +512,8 @@ uses
   Winapi.Windows,
   // Delphi system utilities
   System.SysUtils,
-  System.Math;
+  System.Math,
+  System.Classes;
 
 // --- Internal Constants ---
 const
@@ -186,6 +522,7 @@ const
   STATUS_IMAGE_NOT_AT_BASE     = $40000003; // Image was loaded but not at its preferred base address. Used by the hook to signal success with redirection.
   STATUS_NOT_SUPPORTED         = $C00000BB; // The request is not supported. Used by hooks for 24H2 compatibility.
   STATUS_ACCESS_DENIED         = $C0000022; // Access denied.
+  STATUS_DLL_NOT_FOUND         = NTSTATUS($C0000135); // DLL not found.
   STATUS_PROCEDURE_NOT_FOUND   = $C000007A; // The specified procedure could not be found (e.g., missing NT function).
   STATUS_UNSUCCESSFUL          = $C0000001; // Generic unsuccessful status.
 
@@ -209,6 +546,8 @@ const
 
   // LDR Flags: Internal Windows Loader flags for module entries.
   LDRP_DONT_CALL_FOR_THREADS = $00040000; // Flag to prevent DllMain calls for thread attach/detach after initial process attach.
+  LDRP_HASH_TABLE_SIZE       = 32;        // Number of buckets in the LdrpHashTable array inside ntdll.
+  IMAGE_ORDINAL_FLAG64       = NativeUInt($8000000000000000); // High bit = import by ordinal on x64.
 
   // Section Access Rights: Used with NT section objects.
   SECTION_QUERY          = $0001; // Required to query a section object.
@@ -309,10 +648,7 @@ type
     Flags: ULONG;                           // Various loader flags (e.g., LDRP_DONT_CALL_FOR_THREADS).
     LoadCount: Word;                        // Reference count for static loads (obsolete, often -1).
     TlsIndex: Word;                         // Thread Local Storage index assigned to the module.
-    // The following fields approximate a union in the original C structure.
-    // HashLinks OR SectionPointer: Depending on context, can be list entry for hash table or pointer to section info.
-    HashLinks_SectionPointer: PVOID;        // Using PVOID as a generic representation. Field offset is key.
-    // CheckSum OR TimeDateStamp: Depending on context.
+    HashLinks: LIST_ENTRY;                  // LIST_ENTRY for the LdrpHashTable (offset 0x70 on x64).
     CheckSum: ULONG;                        // Checksum from the PE header.
     TimeDateStamp: ULONG;                   // Time/date stamp from the PE header.
     // ... many other fields related to imports, TLS, etc., are omitted.
@@ -427,11 +763,36 @@ type
   // Function pointer type for RtlNtStatusToDosError (to convert NTSTATUS codes to Win32 error codes).
   TRtlNtStatusToDosError = function(Status: NTSTATUS): DWORD; stdcall;
 
+  // Function pointer type for LdrGetDllHandle (hooked for named module lookup on Win11 24H2+).
+  TLdrGetDllHandle = function(
+    DllPath: PWideChar;
+    DllCharacteristics: Pointer;
+    DllName: PUNICODE_STRING;
+    DllHandle: Pointer
+  ): NTSTATUS; stdcall;
+
   // --- PE Structure Pointer Types ---
   // Standard PE structures are defined in Winapi.Windows, use pointers to them.
   PImageDosHeader = ^TImageDosHeader;           // Pointer to the DOS header ("MZ").
   PImageNtHeaders64 = ^TImageNtHeaders64;       // Pointer to the 64-bit NT headers (PE signature, File Header, Optional Header).
   PImageSectionHeader = ^TImageSectionHeader;   // Pointer to a section header entry.
+  PImageDataDirectory = ^TImageDataDirectory;   // Pointer to a data directory entry.
+
+  // PE Import Table structures (not in Delphi's standard units).
+  TImageImportDescriptor = packed record
+    OriginalFirstThunk: DWORD; // RVA to INT (Import Name Table) / Import Lookup Table
+    TimeDateStamp: DWORD;
+    ForwarderChain: DWORD;
+    Name: DWORD;               // RVA to the DLL name string
+    FirstThunk: DWORD;         // RVA to IAT (Import Address Table)
+  end;
+  PImageImportDescriptor = ^TImageImportDescriptor;
+
+  TImageImportByName = packed record
+    Hint: Word;
+    Name: array[0..0] of AnsiChar; // Variable-length name follows
+  end;
+  PImageImportByName = ^TImageImportByName;
 
 // --- Global Variables for the Unit ---
 var
@@ -465,6 +826,44 @@ var
   FLdrLockLoaderLock: TLdrLockLoaderLock = nil;     // Pointer to LdrLockLoaderLock.
   FLdrUnlockLoaderLock: TLdrUnlockLoaderLock = nil; // Pointer to LdrUnlockLoaderLock.
   FRtlNtStatusToDosError: TRtlNtStatusToDosError = nil; // Pointer to RtlNtStatusToDosError.
+
+  // LDR Hash Table: Cached base address of ntdll's LdrpHashTable array.
+  GLdrpHashTable: Pointer = nil;
+
+  // LdrGetDllHandle Hook: Persistent hook for module name lookup redirection.
+  // On Windows 11 24H2+, patching BaseDllName/FullDllName strings in the LDR entry
+  // is insufficient because the loader uses internal name-indexed data structures
+  // that are not updated by string patching. This hook intercepts LdrGetDllHandle
+  // and checks our module registry when the original function returns NOT_FOUND.
+  GLdrGetDllHandleAddr: Pointer = nil;
+  GOrigLdrGetDllHandle: TLdrGetDllHandle = nil;
+  GOrigBytesLdrGetDllHandle: TBytes;
+  GLdrHookInstalled: Boolean = False;
+
+  // LdrLoadDll Hook: Persistent hook for import resolution redirection.
+  // When the import resolver can't find a module and tries to load it from disk,
+  // this hook intercepts and returns the existing handle from our registry.
+  GLdrLoadDllAddr: Pointer = nil;
+  GOrigLdrLoadDll: TLdrGetDllHandle = nil; // Same signature as LdrGetDllHandle
+  GOrigBytesLdrLoadDll: TBytes;
+  GLdrLoadDllHookInstalled: Boolean = False;
+
+  // Module Registry: Simple name→handle map for memory-loaded DLLs.
+  GRegisteredModuleCount: Integer = 0;
+  GRegisteredModuleNames: array[0..63] of string;
+  GRegisteredModuleHandles: array[0..63] of THandle;
+
+  // Data Registry: Stores raw PE data or resource names registered by the user
+  // for deferred loading. LoadLibrary(AModuleName) and LoadAll use this.
+  GDataRegistryCount: Integer = 0;
+  GDataRegistryNames: array[0..63] of string;     // Module name, e.g. 'DllA.dll'
+  GDataRegistryPtrs: array[0..63] of Pointer;     // Raw PE bytes (nil if resource-based)
+  GDataRegistrySizes: array[0..63] of NativeUInt;  // Size of raw PE bytes (0 if resource-based)
+  GDataRegistryResNames: array[0..63] of string;   // Resource name (empty if pointer-based)
+
+  // Circular dependency protection: tracks modules currently being loaded.
+  GLoadingInProgressCount: Integer = 0;
+  GLoadingInProgress: array[0..63] of string;
 
 // --- Helper: OutputDebugStringFmt ---
 // Formats a string with arguments and sends it to the debugger output.
@@ -1863,33 +2262,33 @@ begin
         // Attempt overwrite using LdrEntry name if found, otherwise fall back to the original dummy FileName.
         if (LLdrEntryName <> '') and OverwriteHeaders(Pointer(LLib), LLdrEntryName) then
         begin
-            // Success using LDR name.
-            OutputDebugStringFmt('MapAndResolve: OverwriteHeaders succeeded using LDR entry name.', []);
+          // Success using LDR name.
+          OutputDebugStringFmt('MapAndResolve: OverwriteHeaders succeeded using LDR entry name.', []);
         end
         else if OverwriteHeaders(Pointer(LLib), LWideFileName) then // Use LWideFileName (original AFilename) as fallback.
         begin
-            // Success using fallback dummy name.
-            OutputDebugStringFmt('MapAndResolve: OverwriteHeaders succeeded using fallback dummy filename "%s".', [LWideFileName]);
+          // Success using fallback dummy name.
+          OutputDebugStringFmt('MapAndResolve: OverwriteHeaders succeeded using fallback dummy filename "%s".', [LWideFileName]);
         end else
-            // Both attempts failed.
-            OutputDebugStringFmt('MapAndResolve Warning: Failed to overwrite headers using both LdrEntry name ("%s") and fallback dummy filename ("%s").', [LLdrEntryName, LWideFileName]);
+          // Both attempts failed.
+          OutputDebugStringFmt('MapAndResolve Warning: Failed to overwrite headers using both LdrEntry name ("%s") and fallback dummy filename ("%s").', [LLdrEntryName, LWideFileName]);
       end;
 
       // LOAD_FLAGS_NO_MODLIST: Unlink from PEB loader lists.
       if (APlFlags and LOAD_FLAGS_NO_MODLIST) <> 0 then
       begin
-         OutputDebugStringFmt('MapAndResolve: Applying LOAD_FLAGS_NO_MODLIST.', []);
-         if not UnlinkModule(Pointer(LLib)) then
-           OutputDebugStringFmt('MapAndResolve Warning: Failed to unlink module 0x%p from LDR lists.', [Pointer(LLib)]);
+        OutputDebugStringFmt('MapAndResolve: Applying LOAD_FLAGS_NO_MODLIST.', []);
+        if not UnlinkModule(Pointer(LLib)) then
+         OutputDebugStringFmt('MapAndResolve Warning: Failed to unlink module 0x%p from LDR lists.', [Pointer(LLib)]);
       end;
 
       // LOAD_FLAGS_NO_HEADERS: Zero out PE headers in memory.
       // Do this *after* OverwriteHeaders if both were specified.
       if (APlFlags and LOAD_FLAGS_NO_HEADERS) <> 0 then
       begin
-         OutputDebugStringFmt('MapAndResolve: Applying LOAD_FLAGS_NO_HEADERS.', []);
-         if not RemoveHeaders(Pointer(LLib)) then
-           OutputDebugStringFmt('MapAndResolve Warning: Failed to remove (zero) PE headers for module 0x%p.', [Pointer(LLib)]);
+        OutputDebugStringFmt('MapAndResolve: Applying LOAD_FLAGS_NO_HEADERS.', []);
+        if not RemoveHeaders(Pointer(LLib)) then
+          OutputDebugStringFmt('MapAndResolve Warning: Failed to remove (zero) PE headers for module 0x%p.', [Pointer(LLib)]);
       end;
 
     except
@@ -1914,7 +2313,6 @@ begin
     end else
        OutputDebugStringFmt('MapAndResolve: Warning - LoadLibraryExW failed, but LMappedAddress was already nil?', []);
 
-
     // Restore the error code that LoadLibraryExW returned.
     SetLastError(LLastErrorValue);
     // Result is already 0.
@@ -1923,12 +2321,443 @@ begin
   OutputDebugStringFmt('MapAndResolve: Process finished. Returning handle 0x%p.', [Pointer(Result)]);
 end;
 
+// --- Module Registry & LdrGetDllHandle Hook ---
+// On Windows 11 24H2+, the internal loader lookup (LdrpFindLoadedDllByNameLockHeld)
+// uses data structures beyond LdrpHashTable that cannot be patched post-hoc.
+// This hook intercepts LdrGetDllHandle and falls back to our registry when the
+// original function returns STATUS_DLL_NOT_FOUND for a memory-loaded module.
+
+// Registers a memory-loaded module in our lookup registry.
+procedure RegisterModule(const AName: string; const AHandle: THandle);
+var
+  I: Integer;
+begin
+  // Check for existing entry with the same name and update it.
+  for I := 0 to GRegisteredModuleCount - 1 do
+  begin
+    if SameText(GRegisteredModuleNames[I], AName) then
+    begin
+      GRegisteredModuleHandles[I] := AHandle;
+      Exit;
+    end;
+  end;
+  // Add new entry if space available.
+  if GRegisteredModuleCount < Length(GRegisteredModuleNames) then
+  begin
+    GRegisteredModuleNames[GRegisteredModuleCount] := AName;
+    GRegisteredModuleHandles[GRegisteredModuleCount] := AHandle;
+    Inc(GRegisteredModuleCount);
+  end
+  else
+    OutputDebugStringFmt('RegisterModule: Registry full, cannot register "%s".', [AName]);
+end;
+
+// Looks up a UNICODE_STRING name in the module registry.
+// Returns the handle if found, 0 otherwise.
+function FindRegisteredModule(const ADllName: PUNICODE_STRING): THandle;
+var
+  I: Integer;
+  LName: string;
+  LLen: Integer;
+begin
+  Result := 0;
+  if (ADllName = nil) or (ADllName^.Buffer = nil) or (ADllName^.Length = 0) then
+    Exit;
+  LLen := ADllName^.Length div SizeOf(WideChar);
+  LName := WideCharLenToString(ADllName^.Buffer, LLen);
+  for I := 0 to GRegisteredModuleCount - 1 do
+  begin
+    if SameText(GRegisteredModuleNames[I], LName) then
+    begin
+      Result := GRegisteredModuleHandles[I];
+      Exit;
+    end;
+  end;
+end;
+
+// Hook handler for LdrGetDllHandle. Calls the original, and if it returns
+// STATUS_DLL_NOT_FOUND, checks our module registry for memory-loaded DLLs.
+function HookedLdrGetDllHandle(
+  DllPath: PWideChar;
+  DllCharacteristics: Pointer;
+  DllName: PUNICODE_STRING;
+  DllHandle: Pointer // PHandle
+): NTSTATUS; stdcall;
+var
+  LFoundHandle: THandle;
+begin
+  // Call the original function first (requires unhook/rehook pattern).
+  EnterCriticalSection(GRedirectCritSect);
+  try
+    if UninstallHook(GLdrGetDllHandleAddr, GOrigBytesLdrGetDllHandle) then
+    try
+      Result := GOrigLdrGetDllHandle(DllPath, DllCharacteristics, DllName, DllHandle);
+    finally
+      InstallHook(GLdrGetDllHandleAddr, @HookedLdrGetDllHandle, GOrigBytesLdrGetDllHandle);
+    end
+    else
+    begin
+      // Unhook failed — call original directly (may recurse if hook still active)
+      Result := GOrigLdrGetDllHandle(DllPath, DllCharacteristics, DllName, DllHandle);
+    end;
+  finally
+    LeaveCriticalSection(GRedirectCritSect);
+  end;
+
+  // If the original returned DLL_NOT_FOUND ($C0000135), check our registry.
+  if Result = NTSTATUS($C0000135) then
+  begin
+    LFoundHandle := FindRegisteredModule(DllName);
+    if LFoundHandle <> 0 then
+    begin
+      // Found in our registry — set the output handle and return success.
+      PHandle(DllHandle)^ := LFoundHandle;
+      Result := STATUS_SUCCESS;
+    end;
+  end;
+end;
+
+// Hook handler for LdrLoadDll. When the import resolver tries to load a DLL
+// from disk that we've already loaded from memory, return the existing handle.
+function HookedLdrLoadDll(
+  DllPath: PWideChar;
+  DllCharacteristics: Pointer;
+  DllName: PUNICODE_STRING;
+  DllHandle: Pointer
+): NTSTATUS; stdcall;
+var
+  LFoundHandle: THandle;
+  LNameStr: string;
+begin
+  // Trace all calls to see if we're being invoked during import resolution
+  if (DllName <> nil) and (DllName^.Buffer <> nil) and (DllName^.Length > 0) then
+    LNameStr := WideCharLenToString(DllName^.Buffer, DllName^.Length div SizeOf(WideChar))
+  else
+    LNameStr := '(null)';
+
+  // Check our registry FIRST — if we have it, no need to call the original.
+  LFoundHandle := FindRegisteredModule(DllName);
+  if LFoundHandle <> 0 then
+  begin
+    PHandle(DllHandle)^ := LFoundHandle;
+    Result := STATUS_SUCCESS;
+    Exit;
+  end;
+
+  // Not one of ours — call the original LdrLoadDll.
+  EnterCriticalSection(GRedirectCritSect);
+  try
+    if UninstallHook(GLdrLoadDllAddr, GOrigBytesLdrLoadDll) then
+    try
+      Result := GOrigLdrLoadDll(DllPath, DllCharacteristics, DllName, DllHandle);
+    finally
+      InstallHook(GLdrLoadDllAddr, @HookedLdrLoadDll, GOrigBytesLdrLoadDll);
+    end
+    else
+      Result := GOrigLdrLoadDll(DllPath, DllCharacteristics, DllName, DllHandle);
+  finally
+    LeaveCriticalSection(GRedirectCritSect);
+  end;
+end;
+
+// Installs the persistent LdrGetDllHandle hook if not already installed.
+procedure EnsureLdrGetDllHandleHooked();
+begin
+  if GLdrHookInstalled then
+    Exit;
+
+  GLdrGetDllHandleAddr := GetProcAddress(GetModuleHandle('ntdll.dll'), 'LdrGetDllHandle');
+  if GLdrGetDllHandleAddr = nil then
+  begin
+    OutputDebugStringFmt('EnsureLdrGetDllHandleHooked: Could not find LdrGetDllHandle in ntdll.', []);
+    Exit;
+  end;
+
+  GOrigLdrGetDllHandle := TLdrGetDllHandle(GLdrGetDllHandleAddr);
+
+  EnterCriticalSection(GRedirectCritSect);
+  try
+    GLdrHookInstalled := InstallHook(GLdrGetDllHandleAddr, @HookedLdrGetDllHandle, GOrigBytesLdrGetDllHandle);
+  finally
+    LeaveCriticalSection(GRedirectCritSect);
+  end;
+
+  if GLdrHookInstalled then
+  else
+
+  // Also hook LdrLoadDll — the import resolver calls this directly when it
+  // can't find a module, bypassing LdrGetDllHandle entirely.
+  if not GLdrLoadDllHookInstalled then
+  begin
+    GLdrLoadDllAddr := GetProcAddress(GetModuleHandle('ntdll.dll'), 'LdrLoadDll');
+    if GLdrLoadDllAddr <> nil then
+    begin
+      GOrigLdrLoadDll := TLdrGetDllHandle(GLdrLoadDllAddr);
+      EnterCriticalSection(GRedirectCritSect);
+      try
+        GLdrLoadDllHookInstalled := InstallHook(GLdrLoadDllAddr, @HookedLdrLoadDll, GOrigBytesLdrLoadDll);
+      finally
+        LeaveCriticalSection(GRedirectCritSect);
+      end;
+      if GLdrLoadDllHookInstalled then
+      else
+    end;
+  end;
+end;
+
+// --- Module Name Patching ---
+
+// Computes the LDR hash bucket index for a module name.
+// Calls ntdll's RtlHashUnicodeString to match the exact algorithm used by the
+// Windows loader, then masks to 32 buckets (AND $1F).
+function LdrHashModuleName(const AName: string): ULONG;
+type
+  TRtlHashUnicodeString = function(
+    const AString: PUNICODE_STRING;
+    ACaseInSensitive: BOOLEAN;
+    AHashAlgorithm: ULONG;
+    AHashValue: PULONG
+  ): NTSTATUS; stdcall;
+var
+  LNtdll: HMODULE;
+  LFunc: TRtlHashUnicodeString;
+  LUniStr: UNICODE_STRING;
+  LWideName: UnicodeString;
+  LHashValue: ULONG;
+begin
+  Result := 0;
+  LWideName := AName;
+
+  LNtdll := GetModuleHandle('ntdll.dll');
+  if LNtdll = 0 then Exit;
+
+  @LFunc := GetProcAddress(LNtdll, 'RtlHashUnicodeString');
+  if @LFunc = nil then Exit;
+
+  LUniStr.Length := Length(LWideName) * SizeOf(WideChar);
+  LUniStr.MaximumLength := LUniStr.Length + SizeOf(WideChar);
+  LUniStr.Buffer := PWideChar(LWideName);
+
+  // HashAlgorithm 0 = HASH_STRING_ALGORITHM_DEFAULT (x65599)
+  // CaseInSensitive = True
+  if LFunc(@LUniStr, True, 0, @LHashValue) = 0 then
+    Result := LHashValue and (LDRP_HASH_TABLE_SIZE - 1);
+end;
+
+// Returns a pointer to the HashLinks LIST_ENTRY within an LDR_DATA_TABLE_ENTRY.
+// Now directly references the correctly declared HashLinks field.
+function GetHashLinksPtr(const ALdrEntry: PLDR_DATA_TABLE_ENTRY): PLIST_ENTRY;
+begin
+  Result := @ALdrEntry^.HashLinks;
+end;
+
+// Locates the base address of ntdll's LdrpHashTable static array by walking
+// ntdll's HashLinks chain to find the bucket head (which resides in ntdll's
+// .data section). Must be called while holding the loader lock.
+function FindLdrpHashTable(): Pointer;
+var
+  LNtdllHandle: HMODULE;
+  LNtdllEntry: PLDR_DATA_TABLE_ENTRY;
+  LNtdllBase: NativeUInt;
+  LNtdllEnd: NativeUInt;
+  LHash: ULONG;
+  LHashLinks: PLIST_ENTRY;
+  LCurrent: PLIST_ENTRY;
+begin
+  // Return cached value if available.
+  Result := GLdrpHashTable;
+  if Result <> nil then Exit;
+
+  LNtdllHandle := GetModuleHandle('ntdll.dll');
+  if LNtdllHandle = 0 then
+  begin
+    OutputDebugStringFmt('FindLdrpHashTable: GetModuleHandle for ntdll.dll failed.', []);
+    Exit;
+  end;
+
+  LNtdllEntry := GetLdrDataTableEntry(Pointer(LNtdllHandle));
+  if LNtdllEntry = nil then
+  begin
+    OutputDebugStringFmt('FindLdrpHashTable: Could not find LDR entry for ntdll.dll.', []);
+    Exit;
+  end;
+
+  LNtdllBase := NativeUInt(LNtdllEntry^.DllBase);
+  LNtdllEnd := LNtdllBase + LNtdllEntry^.SizeOfImage;
+
+  // Hash "ntdll.dll" to determine which bucket it belongs to.
+  LHash := LdrHashModuleName('ntdll.dll');
+
+  // Get ntdll's HashLinks pointer.
+  LHashLinks := GetHashLinksPtr(LNtdllEntry);
+
+  // Walk backward through the hash chain. The bucket head is a static
+  // LIST_ENTRY inside ntdll's address range, while module LDR entries
+  // are heap-allocated and outside that range.
+  LCurrent := PLIST_ENTRY(LHashLinks^.Blink);
+  while LCurrent <> LHashLinks do
+  begin
+    if (NativeUInt(LCurrent) >= LNtdllBase) and
+       (NativeUInt(LCurrent) < LNtdllEnd) then
+    begin
+      // Found the bucket head for index LHash. Compute the array base.
+      Result := Pointer(NativeUInt(LCurrent) - LHash * SizeOf(LIST_ENTRY));
+      GLdrpHashTable := Result;
+      OutputDebugStringFmt('FindLdrpHashTable: Located at %p (bucket %d head at %p).',
+        [Result, LHash, LCurrent]);
+      Exit;
+    end;
+    LCurrent := PLIST_ENTRY(LCurrent^.Blink);
+  end;
+
+  OutputDebugStringFmt('FindLdrpHashTable: Could not locate LdrpHashTable base.', []);
+end;
+
+// Patches the BaseDllName and FullDllName in the module's LDR_DATA_TABLE_ENTRY
+// OS loader can resolve imports by the given module name. The name buffer is
+// allocated on the process heap and persists for the lifetime of the process.
+function PatchModuleName(const AModuleHandle: HMODULE;
+  const AModuleName: string): Boolean;
+var
+  LCookie: NativeUInt;
+  LLdrEntry: PLDR_DATA_TABLE_ENTRY;
+  LWideName: WideString;
+  LBufferSize: Word;
+  LBuffer: PWideChar;
+  LFullBuffer: PWideChar;
+  LHeap: THandle;
+  LHashTable: Pointer;
+  LHashLinksPtr: PLIST_ENTRY;
+  LNewHash: ULONG;
+  LNewBucket: PLIST_ENTRY;
+begin
+  Result := False;
+
+  if (AModuleHandle = 0) or (AModuleName = '') then
+  begin
+    OutputDebugStringFmt('PatchModuleName Error: Invalid handle or empty module name.', []);
+    Exit;
+  end;
+
+  LWideName := AModuleName;
+  LBufferSize := Length(LWideName) * SizeOf(WideChar);
+
+  // Allocate persistent memory from the process heap for the name buffer.
+  // This must outlive the function — the LDR entry will point to it permanently.
+  LHeap := GetProcessHeap();
+  LBuffer := HeapAlloc(LHeap, 0, LBufferSize + SizeOf(WideChar));
+  if LBuffer = nil then
+  begin
+    OutputDebugStringFmt('PatchModuleName Error: HeapAlloc failed for %d bytes. Error: %d',
+      [LBufferSize + SizeOf(WideChar), GetLastError()]);
+    Exit;
+  end;
+
+  // Copy the wide string into the heap buffer, including null terminator.
+  Move(PWideChar(LWideName)^, LBuffer^, LBufferSize + SizeOf(WideChar));
+
+  LCookie := LockLoader();
+  if LCookie = 0 then
+  begin
+    OutputDebugStringFmt('PatchModuleName Error: Failed to acquire loader lock.', []);
+    HeapFree(LHeap, 0, LBuffer);
+    Exit;
+  end;
+  try
+    LLdrEntry := GetLdrDataTableEntry(Pointer(AModuleHandle));
+    if LLdrEntry = nil then
+    begin
+      OutputDebugStringFmt('PatchModuleName Error: Could not find LDR entry for module 0x%p.',
+        [Pointer(AModuleHandle)]);
+      HeapFree(LHeap, 0, LBuffer);
+      Exit;
+    end;
+
+    // Patch BaseDllName — this is what the loader searches by when resolving imports.
+    LLdrEntry^.BaseDllName.Buffer := LBuffer;
+    LLdrEntry^.BaseDllName.Length := LBufferSize;
+    LLdrEntry^.BaseDllName.MaximumLength := LBufferSize + SizeOf(WideChar);
+
+    // Patch FullDllName — this is what LoadLibraryExW checks to detect
+    // already-loaded modules. Without patching this, subsequent loads using
+    // the same dummy file path will collide and return the existing handle
+    // instead of triggering the NtMapViewOfSection hook.
+    LFullBuffer := HeapAlloc(LHeap, 0, LBufferSize + SizeOf(WideChar));
+    if LFullBuffer <> nil then
+    begin
+      Move(PWideChar(LWideName)^, LFullBuffer^, LBufferSize + SizeOf(WideChar));
+      LLdrEntry^.FullDllName.Buffer := LFullBuffer;
+      LLdrEntry^.FullDllName.Length := LBufferSize;
+      LLdrEntry^.FullDllName.MaximumLength := LBufferSize + SizeOf(WideChar);
+      OutputDebugStringFmt('PatchModuleName: Patched FullDllName to "%s" for module 0x%p.',
+        [AModuleName, Pointer(AModuleHandle)]);
+    end
+    else
+      OutputDebugStringFmt('PatchModuleName Warning: HeapAlloc failed for FullDllName buffer.', []);
+
+    OutputDebugStringFmt('PatchModuleName: Patched BaseDllName to "%s" for module 0x%p.',
+      [AModuleName, Pointer(AModuleHandle)]);
+
+    // Re-link the HashLinks entry from the old hash bucket to the new one.
+    // The loader uses a 32-bucket hash table (LdrpHashTable) keyed on
+    // BaseDllName to quickly find loaded modules. After patching the name,
+    // the entry is still in the old bucket, so lookups for the new name
+    // would miss it. We must move it to the correct bucket.
+    LHashTable := FindLdrpHashTable();
+    if LHashTable <> nil then
+    begin
+      LHashLinksPtr := GetHashLinksPtr(LLdrEntry);
+
+      // Unlink from old bucket.
+      if (LHashLinksPtr^.Flink <> nil) and (LHashLinksPtr^.Blink <> nil) then
+      begin
+        PLIST_ENTRY(LHashLinksPtr^.Blink)^.Flink := LHashLinksPtr^.Flink;
+        PLIST_ENTRY(LHashLinksPtr^.Flink)^.Blink := LHashLinksPtr^.Blink;
+      end;
+
+      // Compute new hash and get the target bucket head.
+      LNewHash := LdrHashModuleName(AModuleName);
+      LNewBucket := PLIST_ENTRY(NativeUInt(LHashTable) + LNewHash * SizeOf(LIST_ENTRY));
+
+      // Guard against nil Flink before insert.
+      if (LNewBucket^.Flink = nil) or (LNewBucket^.Blink = nil) then
+      begin
+        OutputDebugStringFmt('PatchModuleName: ERROR bucket %d has nil links. HashTable may be wrong.', [LNewHash]);
+      end
+      else
+      begin
+        // Insert at the front of the new bucket (after the head).
+        LHashLinksPtr^.Flink := LNewBucket^.Flink;
+        LHashLinksPtr^.Blink := Pointer(LNewBucket);
+        PLIST_ENTRY(LNewBucket^.Flink)^.Blink := Pointer(LHashLinksPtr);
+        LNewBucket^.Flink := Pointer(LHashLinksPtr);
+      end;
+
+      OutputDebugStringFmt('PatchModuleName: Re-linked HashLinks from old bucket to bucket %d for "%s".',
+        [LNewHash, AModuleName]);
+    end
+    else
+      OutputDebugStringFmt('PatchModuleName Warning: Could not locate LdrpHashTable. Hash re-linking skipped.', []);
+
+    // Register this module in our lookup registry and ensure the
+    // LdrGetDllHandle hook is active so the loader can find it by name.
+    RegisterModule(AModuleName, AModuleHandle);
+    EnsureLdrGetDllHandleHooked();
+
+    Result := True;
+  finally
+    UnlockLoader(LCookie);
+  end;
+end;
+
 // --- Public Function Implementation ---
 
 // The main public function exposed by the unit. Loads a DLL from memory.
 function LoadLibrary(const AData: Pointer; const ASize: NativeUInt): THandle;
 var
   LPath: string; // Stores the path to the dummy DLL.
+  LGuid: TGUID;
+  LUniqueName: string;
 
   // Helper function to get the full path of an existing system DLL.
   // Used to find a suitable dummy file for the MapAndResolve AFilename parameter.
@@ -1969,16 +2798,662 @@ begin
   LPath := GetFullPathToDll('advapi32res.dll'); // Tries to find path like C:\Windows\System32\advapi32res.dll
   if LPath = '' then
   begin
-     OutputDebugStringFmt('Dlluminator.LoadLibrary Error: Could not find path to dummy DLL "advapi32res.dll". Cannot proceed.', []);
-     SetLastError(ERROR_FILE_NOT_FOUND); // Indicate failure to find necessary file.
-     Result := 0;
-     Exit;
+    OutputDebugStringFmt('Dlluminator.LoadLibrary Error: Could not find path to dummy DLL "advapi32res.dll". Cannot proceed.', []);
+    SetLastError(ERROR_FILE_NOT_FOUND); // Indicate failure to find necessary file.
+    Result := 0;
+    Exit;
   end;
   OutputDebugStringFmt('Dlluminator.LoadLibrary: Using dummy path "%s".', [LPath]);
 
   // 2. Call the core MapAndResolve function.
   // Pass the user's DLL data (AData, ASize), standard flags (0), the dummy path, and default PlFlags (0).
   Result := MapAndResolve(AData, ASize, 0, PWideChar(LPath), LOAD_FLAGS_NONE);
+
+  // 3. Patch the LDR entry names to free the dummy path for reuse.
+  // Without this, subsequent loads will find the dummy path already in the
+  // LDR list and return the existing handle instead of loading a new module.
+  if Result <> 0 then
+  begin
+    CreateGUID(LGuid);
+    LUniqueName := GUIDToString(LGuid) + '.dll';
+    PatchModuleName(Result, LUniqueName);
+  end;
+end;
+
+// Manually resolves all imports for a loaded module.
+// Walks the PE import directory and fixes up the IAT entries.
+// Uses our module registry for memory-loaded DLLs, and the standard
+// Windows API for system DLLs.
+function ManualResolveImports(const AModuleBase: Pointer): Boolean;
+type
+  TDllEntryPoint = function(AInstance: HINST; AReason: DWORD; AReserved: Pointer): BOOL; stdcall;
+var
+  LDosHeader: PImageDosHeader;
+  LNtHeaders: PImageNtHeaders64;
+  LImportDir: PImageDataDirectory;
+  LImportDesc: PImageImportDescriptor;
+  LDllName: PAnsiChar;
+  LDllNameStr: string;
+  LDllHandle: HMODULE;
+  LThunkRef: PNativeUInt;  // INT (Original First Thunk)
+  LFuncRef: PNativeUInt;   // IAT (First Thunk)
+  LOrdinal: Word;
+  LHintName: PImageImportByName;
+  LFuncAddr: Pointer;
+  LBase: NativeUInt;
+  LRegistryIdx: Integer;
+begin
+  Result := False;
+  LBase := NativeUInt(AModuleBase);
+
+  // Parse PE headers
+  LDosHeader := PImageDosHeader(LBase);
+  if LDosHeader^.e_magic <> IMAGE_DOS_SIGNATURE then Exit;
+
+  LNtHeaders := PImageNtHeaders64(LBase + NativeUInt(LDosHeader^._lfanew));
+  if LNtHeaders^.Signature <> IMAGE_NT_SIGNATURE then Exit;
+
+  // Get import directory
+  LImportDir := @LNtHeaders^.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+  if (LImportDir^.VirtualAddress = 0) or (LImportDir^.Size = 0) then
+  begin
+    Result := True; // No imports — nothing to resolve
+    Exit;
+  end;
+
+  LImportDesc := PImageImportDescriptor(LBase + LImportDir^.VirtualAddress);
+
+  // Walk each import descriptor
+  while LImportDesc^.Name <> 0 do
+  begin
+    LDllName := PAnsiChar(LBase + LImportDesc^.Name);
+    LDllNameStr := string(AnsiString(LDllName));
+
+    // Resolve the imported DLL handle
+    LDllHandle := 0;
+
+    // Check our registry first (memory-loaded modules)
+    for LRegistryIdx := 0 to GRegisteredModuleCount - 1 do
+    begin
+      if SameText(GRegisteredModuleNames[LRegistryIdx], LDllNameStr) then
+      begin
+        LDllHandle := GRegisteredModuleHandles[LRegistryIdx];
+        Break;
+      end;
+    end;
+
+    // Fall back to Windows API for system DLLs
+    if LDllHandle = 0 then
+    begin
+      LDllHandle := GetModuleHandle(PChar(LDllNameStr));
+      if LDllHandle = 0 then
+        LDllHandle := Winapi.Windows.LoadLibrary(PChar(LDllNameStr));
+      if LDllHandle = 0 then
+      begin
+        Exit;
+      end;
+    end;
+
+    // Resolve each function in this import's IAT
+    // Use OriginalFirstThunk (INT) for names, FirstThunk (IAT) for writing addresses
+    if LImportDesc^.OriginalFirstThunk <> 0 then
+      LThunkRef := PNativeUInt(LBase + LImportDesc^.OriginalFirstThunk)
+    else
+      LThunkRef := PNativeUInt(LBase + LImportDesc^.FirstThunk);
+    LFuncRef := PNativeUInt(LBase + LImportDesc^.FirstThunk);
+
+    while LThunkRef^ <> 0 do
+    begin
+      // Check if import is by ordinal (high bit set on x64)
+      if (LThunkRef^ and IMAGE_ORDINAL_FLAG64) <> 0 then
+      begin
+        LOrdinal := Word(LThunkRef^ and $FFFF);
+        LFuncAddr := GetProcAddress(LDllHandle, PChar(LOrdinal));
+      end
+      else
+      begin
+        // Import by name
+        LHintName := PImageImportByName(LBase + LThunkRef^);
+        LFuncAddr := GetProcAddress(LDllHandle, PAnsiChar(@LHintName^.Name));
+      end;
+
+      if LFuncAddr = nil then
+      begin
+        Exit;
+      end;
+
+      // Write the resolved address to the IAT
+      LFuncRef^ := NativeUInt(LFuncAddr);
+
+      Inc(LThunkRef);
+      Inc(LFuncRef);
+    end;
+
+    // Move to next import descriptor
+    LImportDesc := PImageImportDescriptor(NativeUInt(LImportDesc) + SizeOf(TImageImportDescriptor));
+  end;
+
+  Result := True;
+end;
+
+// Calls a module's entry point (DllMain) with DLL_PROCESS_ATTACH.
+function CallModuleEntryPoint(const AModuleBase: Pointer): Boolean;
+type
+  TDllEntryPoint = function(AInstance: HINST; AReason: DWORD; AReserved: Pointer): BOOL; stdcall;
+var
+  LDosHeader: PImageDosHeader;
+  LNtHeaders: PImageNtHeaders64;
+  LEntryRVA: DWORD;
+  LEntryPoint: TDllEntryPoint;
+begin
+  Result := False;
+
+  LDosHeader := PImageDosHeader(AModuleBase);
+  if LDosHeader^.e_magic <> IMAGE_DOS_SIGNATURE then Exit;
+
+  LNtHeaders := PImageNtHeaders64(NativeUInt(AModuleBase) + NativeUInt(LDosHeader^._lfanew));
+  if LNtHeaders^.Signature <> IMAGE_NT_SIGNATURE then Exit;
+
+  LEntryRVA := LNtHeaders^.OptionalHeader.AddressOfEntryPoint;
+  if LEntryRVA = 0 then
+  begin
+    Result := True; // No entry point — that's OK
+    Exit;
+  end;
+
+  LEntryPoint := TDllEntryPoint(NativeUInt(AModuleBase) + LEntryRVA);
+
+  Result := LEntryPoint(HINST(AModuleBase), DLL_PROCESS_ATTACH, nil);
+end;
+
+// Checks if a PE image imports from any of our registered modules.
+function HasRegisteredDependencies(const AData: Pointer; const ASize: NativeUInt): Boolean;
+var
+  LDosHeader: PImageDosHeader;
+  LNtHeaders: PImageNtHeaders64;
+  LImportDir: PImageDataDirectory;
+  LImportDesc: PImageImportDescriptor;
+  LDllName: PAnsiChar;
+  LDllNameStr: string;
+  LBase: NativeUInt;
+  I: Integer;
+begin
+  Result := False;
+  LBase := NativeUInt(AData);
+
+  LDosHeader := PImageDosHeader(LBase);
+  if LDosHeader^.e_magic <> IMAGE_DOS_SIGNATURE then Exit;
+
+  LNtHeaders := PImageNtHeaders64(LBase + NativeUInt(LDosHeader^._lfanew));
+  if LNtHeaders^.Signature <> IMAGE_NT_SIGNATURE then Exit;
+
+  LImportDir := @LNtHeaders^.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+  if (LImportDir^.VirtualAddress = 0) or (LImportDir^.Size = 0) then Exit;
+
+  LImportDesc := PImageImportDescriptor(LBase + LImportDir^.VirtualAddress);
+  while LImportDesc^.Name <> 0 do
+  begin
+    LDllName := PAnsiChar(LBase + LImportDesc^.Name);
+    LDllNameStr := string(AnsiString(LDllName));
+    for I := 0 to GRegisteredModuleCount - 1 do
+    begin
+      if SameText(GRegisteredModuleNames[I], LDllNameStr) then
+      begin
+        Result := True;
+        Exit;
+      end;
+    end;
+    LImportDesc := PImageImportDescriptor(NativeUInt(LImportDesc) + SizeOf(TImageImportDescriptor));
+  end;
+end;
+
+// Overloaded version that registers the module under a specified name,
+// enabling dependency resolution between memory-loaded DLLs.
+// Dependencies must be loaded before dependents. For example, load SDL3.dll
+// first, then SDL3_image.dll which imports from SDL3.dll.
+function LoadLibrary(const AData: Pointer; const ASize: NativeUInt;
+  const AModuleName: string): THandle;
+var
+  LHasRegDeps: Boolean;
+  LPath: string;
+  LGuid: TGUID;
+  LUniqueName: string;
+
+  function GetFullPathToDll(const ADllName: string): string;
+  var
+    LHandle: HMODULE;
+    LBuffer: array[0..MAX_PATH - 1] of Char;
+    LCharsCopied: DWORD;
+  begin
+    Result := '';
+    LHandle := Winapi.Windows.LoadLibrary(PChar(ADllName));
+    if LHandle <> 0 then
+    try
+      LCharsCopied := GetModuleFileName(LHandle, LBuffer, MAX_PATH);
+      if LCharsCopied > 0 then
+        Result := LBuffer;
+    finally
+      FreeLibrary(LHandle);
+    end;
+  end;
+
+begin
+  Result := 0;
+
+  // If we have any registered modules, use manual import resolution.
+  // This is required because Windows 11 24H2+ can't find our memory-loaded
+  // modules via its internal name lookup during import resolution.
+  LHasRegDeps := GRegisteredModuleCount > 0;
+
+  if LHasRegDeps then
+  begin
+
+    // Get dummy path for MapAndResolve
+    LPath := GetFullPathToDll('advapi32res.dll');
+    if LPath = '' then
+    begin
+      SetLastError(ERROR_FILE_NOT_FOUND);
+      Exit;
+    end;
+
+    // Load with DONT_RESOLVE_DLL_REFERENCES — the loader will map and relocate
+    // the DLL but will NOT resolve imports or call DllMain.
+    Result := MapAndResolve(AData, ASize, DONT_RESOLVE_DLL_REFERENCES, PWideChar(LPath), LOAD_FLAGS_NONE);
+    if Result = 0 then
+    begin
+      Exit;
+    end;
+
+    // Patch names and register
+    CreateGUID(LGuid);
+    LUniqueName := GUIDToString(LGuid) + '.dll';
+    PatchModuleName(Result, LUniqueName);
+
+    if AModuleName <> '' then
+    begin
+      RegisterModule(AModuleName, Result);
+      PatchModuleName(Result, AModuleName);
+    end;
+
+    // Manually resolve all imports using our registry + Windows API
+    if not ManualResolveImports(Pointer(Result)) then
+    begin
+      FreeLibrary(Result);
+      Result := 0;
+      Exit;
+    end;
+
+    // Call the entry point (DllMain with DLL_PROCESS_ATTACH)
+    if not CallModuleEntryPoint(Pointer(Result)) then
+    begin
+      FreeLibrary(Result);
+      Result := 0;
+      Exit;
+    end;
+
+  end
+  else
+  begin
+    // No registered dependencies — load normally via the base LoadLibrary.
+    // The Windows loader handles import resolution natively.
+    if AModuleName <> '' then
+      EnsureLdrGetDllHandleHooked();
+
+    Result := LoadLibrary(AData, ASize);
+
+    if (Result <> 0) and (AModuleName <> '') then
+    begin
+      RegisterModule(AModuleName, Result);
+      if not PatchModuleName(Result, AModuleName) then
+        OutputDebugStringFmt('Dlluminator.LoadLibrary: Warning - Failed to patch name to "%s".', [AModuleName]);
+    end;
+  end;
+end;
+
+// --- Data Registry & Auto-Dependency Resolution ---
+
+const
+  ERROR_CIRCULAR_DEPENDENCY = 1059; // Standard Windows error code.
+
+// Registers raw DLL data for deferred loading. The caller owns the memory.
+procedure RegisterDllData(const AModuleName: string; const AData: Pointer;
+  const ASize: NativeUInt);
+var
+  I: Integer;
+begin
+  // Update existing entry if name already registered.
+  for I := 0 to GDataRegistryCount - 1 do
+  begin
+    if SameText(GDataRegistryNames[I], AModuleName) then
+    begin
+      GDataRegistryPtrs[I] := AData;
+      GDataRegistrySizes[I] := ASize;
+      GDataRegistryResNames[I] := '';
+      Exit;
+    end;
+  end;
+  // Add new entry.
+  if GDataRegistryCount < Length(GDataRegistryNames) then
+  begin
+    GDataRegistryNames[GDataRegistryCount] := AModuleName;
+    GDataRegistryPtrs[GDataRegistryCount] := AData;
+    GDataRegistrySizes[GDataRegistryCount] := ASize;
+    GDataRegistryResNames[GDataRegistryCount] := '';
+    Inc(GDataRegistryCount);
+  end
+  else
+    OutputDebugStringFmt('RegisterDllData: Data registry full, cannot register "%s".', [AModuleName]);
+end;
+
+// Registers a DLL by resource name for deferred loading. The resource is
+// loaded on demand when LoadLibrary(AModuleName) or LoadAll is called.
+procedure RegisterDllData(const AModuleName: string;
+  const AResName: string);
+var
+  I: Integer;
+begin
+  // Validate the resource exists upfront.
+  if FindResource(HInstance, PChar(AResName), RT_RCDATA) = 0 then
+  begin
+    OutputDebugStringFmt('RegisterDllData: Resource "%s" not found.', [AResName]);
+    Exit;
+  end;
+
+  // Update existing entry if name already registered.
+  for I := 0 to GDataRegistryCount - 1 do
+  begin
+    if SameText(GDataRegistryNames[I], AModuleName) then
+    begin
+      GDataRegistryResNames[I] := AResName;
+      GDataRegistryPtrs[I] := nil;
+      GDataRegistrySizes[I] := 0;
+      Exit;
+    end;
+  end;
+
+  // Add new entry.
+  if GDataRegistryCount < Length(GDataRegistryNames) then
+  begin
+    GDataRegistryNames[GDataRegistryCount] := AModuleName;
+    GDataRegistryResNames[GDataRegistryCount] := AResName;
+    GDataRegistryPtrs[GDataRegistryCount] := nil;
+    GDataRegistrySizes[GDataRegistryCount] := 0;
+    Inc(GDataRegistryCount);
+  end
+  else
+    OutputDebugStringFmt('RegisterDllData: Data registry full, cannot register "%s".', [AModuleName]);
+end;
+
+// Converts an RVA to a file offset by walking section headers in raw PE data.
+function RvaToFileOffset(const AData: Pointer; const ARva: DWORD): DWORD;
+var
+  LDosHeader: PImageDosHeader;
+  LNtHeaders: PImageNtHeaders64;
+  LSectionHeaders: PImageSectionHeader;
+  LSectionCount: Word;
+  I: Integer;
+  LSectVA: DWORD;
+  LSectSize: DWORD;
+begin
+  Result := 0;
+  LDosHeader := PImageDosHeader(AData);
+  LNtHeaders := PImageNtHeaders64(PByte(AData) + LDosHeader^._lfanew);
+  LSectionCount := LNtHeaders^.FileHeader.NumberOfSections;
+
+  {$POINTERMATH ON}
+  LSectionHeaders := PImageSectionHeader(
+    PByte(LNtHeaders)
+    + SizeOf(DWORD)
+    + SizeOf(TImageFileHeader)
+    + LNtHeaders^.FileHeader.SizeOfOptionalHeader
+  );
+  {$POINTERMATH OFF}
+
+  for I := 0 to LSectionCount - 1 do
+  begin
+    LSectVA := LSectionHeaders^.VirtualAddress;
+    LSectSize := LSectionHeaders^.SizeOfRawData;
+    if (ARva >= LSectVA) and (ARva < LSectVA + LSectSize) then
+    begin
+      Result := LSectionHeaders^.PointerToRawData + (ARva - LSectVA);
+      Exit;
+    end;
+    {$POINTERMATH ON}
+    Inc(PByte(LSectionHeaders), SizeOf(TImageSectionHeader));
+    {$POINTERMATH OFF}
+  end;
+end;
+
+// Parses import DLL names from raw (unmapped) PE data using file offsets.
+procedure ParseImportsFromRawPE(const AData: Pointer; const ASize: NativeUInt;
+  out AImports: TArray<string>);
+var
+  LDosHeader: PImageDosHeader;
+  LNtHeaders: PImageNtHeaders64;
+  LImportDir: PImageDataDirectory;
+  LImportDirFileOfs: DWORD;
+  LImportDesc: PImageImportDescriptor;
+  LNameFileOfs: DWORD;
+  LDllName: PAnsiChar;
+  LCount: Integer;
+begin
+  SetLength(AImports, 0);
+  LCount := 0;
+
+  LDosHeader := PImageDosHeader(AData);
+  if LDosHeader^.e_magic <> IMAGE_DOS_SIGNATURE then Exit;
+
+  LNtHeaders := PImageNtHeaders64(PByte(AData) + LDosHeader^._lfanew);
+  if LNtHeaders^.Signature <> IMAGE_NT_SIGNATURE then Exit;
+
+  LImportDir := @LNtHeaders^.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+  if (LImportDir^.VirtualAddress = 0) or (LImportDir^.Size = 0) then
+    Exit; // No imports
+
+  // Convert the import directory RVA to a file offset
+  LImportDirFileOfs := RvaToFileOffset(AData, LImportDir^.VirtualAddress);
+  if LImportDirFileOfs = 0 then Exit;
+
+  LImportDesc := PImageImportDescriptor(PByte(AData) + LImportDirFileOfs);
+
+  while LImportDesc^.Name <> 0 do
+  begin
+    LNameFileOfs := RvaToFileOffset(AData, LImportDesc^.Name);
+    if LNameFileOfs = 0 then
+    begin
+      // Skip this descriptor if we can't resolve the name offset
+      LImportDesc := PImageImportDescriptor(NativeUInt(LImportDesc) + SizeOf(TImageImportDescriptor));
+      Continue;
+    end;
+
+    LDllName := PAnsiChar(PByte(AData) + LNameFileOfs);
+
+    // Grow the array and add the name
+    Inc(LCount);
+    SetLength(AImports, LCount);
+    AImports[LCount - 1] := string(AnsiString(LDllName));
+
+    LImportDesc := PImageImportDescriptor(NativeUInt(LImportDesc) + SizeOf(TImageImportDescriptor));
+  end;
+end;
+
+// Loads a DLL by name from the data registry, automatically resolving
+// dependencies depth-first. Resource-based entries create a TResourceStream
+// on demand, use it for loading, then free it immediately.
+function LoadLibrary(const AModuleName: string): THandle;
+var
+  I: Integer;
+  LDataIdx: Integer;
+  LImports: TArray<string>;
+  J: Integer;
+  LDepName: string;
+  LFoundInData: Boolean;
+  LAlreadyLoaded: Boolean;
+  LLoadingIdx: Integer;
+  LResStream: TResourceStream;
+begin
+  Result := 0;
+
+  // 1. Already loaded in the module registry? Return existing handle.
+  for I := 0 to GRegisteredModuleCount - 1 do
+  begin
+    if SameText(GRegisteredModuleNames[I], AModuleName) then
+    begin
+      Result := GRegisteredModuleHandles[I];
+      Exit;
+    end;
+  end;
+
+  // 2. Find in the data registry.
+  LDataIdx := -1;
+  for I := 0 to GDataRegistryCount - 1 do
+  begin
+    if SameText(GDataRegistryNames[I], AModuleName) then
+    begin
+      LDataIdx := I;
+      Break;
+    end;
+  end;
+
+  if LDataIdx < 0 then
+  begin
+    OutputDebugStringFmt('LoadLibrary(name): "%s" not found in data registry.', [AModuleName]);
+    SetLastError(ERROR_FILE_NOT_FOUND);
+    Exit;
+  end;
+
+  // 3. Circular dependency check.
+  for I := 0 to GLoadingInProgressCount - 1 do
+  begin
+    if SameText(GLoadingInProgress[I], AModuleName) then
+    begin
+      OutputDebugStringFmt('LoadLibrary(name): Circular dependency detected for "%s".', [AModuleName]);
+      SetLastError(ERROR_CIRCULAR_DEPENDENCY);
+      Exit;
+    end;
+  end;
+
+  // 4. Mark as loading in progress.
+  if GLoadingInProgressCount < Length(GLoadingInProgress) then
+  begin
+    GLoadingInProgress[GLoadingInProgressCount] := AModuleName;
+    Inc(GLoadingInProgressCount);
+    LLoadingIdx := GLoadingInProgressCount - 1;
+  end
+  else
+  begin
+    OutputDebugStringFmt('LoadLibrary(name): Loading stack full for "%s".', [AModuleName]);
+    Exit;
+  end;
+
+  try
+    // 5. Parse imports to discover dependencies.
+    //    For resource-based entries, we need to create a stream temporarily
+    //    just to parse the import table, then free it.
+    if GDataRegistryResNames[LDataIdx] <> '' then
+    begin
+      LResStream := TResourceStream.Create(HInstance,
+        GDataRegistryResNames[LDataIdx], RT_RCDATA);
+      try
+        ParseImportsFromRawPE(LResStream.Memory, LResStream.Size, LImports);
+      finally
+        LResStream.Free();
+      end;
+    end
+    else
+      ParseImportsFromRawPE(GDataRegistryPtrs[LDataIdx],
+        GDataRegistrySizes[LDataIdx], LImports);
+
+    // 6. Recursively load each dependency that is in our data registry
+    //    and not yet loaded.
+    for J := 0 to Length(LImports) - 1 do
+    begin
+      LDepName := LImports[J];
+
+      // Check if already loaded in module registry.
+      LAlreadyLoaded := False;
+      for I := 0 to GRegisteredModuleCount - 1 do
+      begin
+        if SameText(GRegisteredModuleNames[I], LDepName) then
+        begin
+          LAlreadyLoaded := True;
+          Break;
+        end;
+      end;
+      if LAlreadyLoaded then
+        Continue;
+
+      // Check if it's in the data registry (one of ours).
+      LFoundInData := False;
+      for I := 0 to GDataRegistryCount - 1 do
+      begin
+        if SameText(GDataRegistryNames[I], LDepName) then
+        begin
+          LFoundInData := True;
+          Break;
+        end;
+      end;
+
+      if LFoundInData then
+      begin
+        // Recursive call to load the dependency first.
+        if LoadLibrary(LDepName) = 0 then
+        begin
+          OutputDebugStringFmt('LoadLibrary(name): Failed to load dependency "%s" for "%s".',
+            [LDepName, AModuleName]);
+          Exit; // Bail out — dependency failed
+        end;
+      end;
+      // If not in data registry, it's a system DLL — ManualResolveImports
+      // handles it later via GetModuleHandle/Windows.LoadLibrary.
+    end;
+
+    // 7. All dependencies loaded. Load this DLL.
+    //    Create resource stream on demand if needed.
+    if GDataRegistryResNames[LDataIdx] <> '' then
+    begin
+      LResStream := TResourceStream.Create(HInstance,
+        GDataRegistryResNames[LDataIdx], RT_RCDATA);
+      try
+        Result := LoadLibrary(LResStream.Memory, LResStream.Size, AModuleName);
+      finally
+        LResStream.Free();
+      end;
+    end
+    else
+      Result := LoadLibrary(GDataRegistryPtrs[LDataIdx],
+        GDataRegistrySizes[LDataIdx], AModuleName);
+
+    if Result = 0 then
+      OutputDebugStringFmt('LoadLibrary(name): Failed to load "%s" from data registry.',
+        [AModuleName]);
+
+  finally
+    // 8. Remove from loading-in-progress stack.
+    if (GLoadingInProgressCount > 0) and
+       (LLoadingIdx = GLoadingInProgressCount - 1) then
+      Dec(GLoadingInProgressCount);
+  end;
+end;
+
+// Loads all registered DLLs in dependency order. The recursive
+// LoadLibrary(AModuleName) handles the topological sort automatically —
+// dependencies are loaded before dependents, and already-loaded modules
+// are skipped.
+function LoadAll(): Boolean;
+var
+  I: Integer;
+begin
+  Result := True;
+  for I := 0 to GDataRegistryCount - 1 do
+  begin
+    if LoadLibrary(GDataRegistryNames[I]) = 0 then
+    begin
+      OutputDebugStringFmt('LoadAll: Failed to load "%s".', [GDataRegistryNames[I]]);
+      Result := False;
+      Exit;
+    end;
+  end;
 end;
 
 // --- Unit Initialization and Finalization ---
@@ -1992,6 +3467,18 @@ initialization
   // InitializeNtFunctions();
 
 finalization
+  // Uninstall the persistent LdrGetDllHandle hook if installed.
+  if GLdrHookInstalled and (GLdrGetDllHandleAddr <> nil) then
+  begin
+    EnterCriticalSection(GRedirectCritSect);
+    try
+      UninstallHook(GLdrGetDllHandleAddr, GOrigBytesLdrGetDllHandle);
+      GLdrHookInstalled := False;
+    finally
+      LeaveCriticalSection(GRedirectCritSect);
+    end;
+  end;
+
   // Delete the critical section object when the unit is unloaded to release system resources.
   DeleteCriticalSection(GRedirectCritSect);
   OutputDebugStringFmt('Dlluminator unit: Finalized (deleted critical section).', []);
