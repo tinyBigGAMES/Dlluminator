@@ -1,106 +1,207 @@
-<div align="center">
-
 ![Dlluminator](media/dlluminator.png)
 
-<br>
+[![Discord](https://img.shields.io/discord/1457450179254026250?style=for-the-badge&logo=discord&label=Discord)](https://discord.gg/Wb6z8Wam7p) [![Follow on Bluesky](https://img.shields.io/badge/Bluesky-tinyBigGAMES-blue?style=for-the-badge&logo=bluesky)](https://bsky.app/profile/tinybiggames.com)
 
-[![Discord](https://img.shields.io/discord/1457450179254026250?style=for-the-badge&logo=discord&label=Discord)](https://discord.gg/Wb6z8Wam7p) [![Follow on Bluesky](https://img.shields.io/badge/Bluesky-tinyBigGAMES-blue?style=for-the-badge&logo=bluesky)](https://bsky.app/profile/tinybiggames.com) 
-
-</div>
-
-<div align="center">
-
-### Load Win64 DLLs straight from memory 💻
-
-</div>
+### Load Win64 DLLs straight from memory. Generate Delphi imports from C headers. 💻
 
 ### Overview
 
-The **Dlluminator** unit provides advanced functionality for loading dynamic-link libraries (DLLs) directly from memory in Win64 environments. Unlike traditional methods that involve loading DLLs from the file system, **Dlluminator** allows you to load DLLs from byte arrays or memory streams, retrieve function addresses, and unload them—all in-memory. This library is ideal for Delphi developers who need to manage DLLs without relying on the filesystem, enhancing both performance and security.
+**Dlluminator** is a Delphi library that loads Win64 DLLs directly from memory and generates Delphi import units from C headers. It eliminates filesystem dependencies for DLL loading and automates the creation of Delphi bindings for C libraries.
 
-**Dlluminator** also supports **cross-DLL dependency resolution** between memory-loaded modules. If DllB imports from DllA, and both are loaded from memory, Dlluminator resolves the dependency automatically — no manual ordering required. This works even on **Windows 11 24H2+**, where internal loader changes broke traditional name-patching approaches.
+The memory loader maps DLLs from byte arrays, embedded resources, or memory streams into the process address space. Standard WinAPI calls (`GetProcAddress`, `FreeLibrary`) work as normal after loading. Multiple DLLs that depend on each other can be loaded from memory together, with Dlluminator resolving the dependency chain automatically.
+
+The **CImporter** tool takes C header files, preprocesses them with tinycc, parses the result, and generates complete Delphi import units (`.pas`) with all types, constants, and function pointer variables. It also produces `.rc` and `.RES` files that embed the DLL binary as an `RT_RCDATA` resource. The generated units use Dlluminator's `RegisterDllData` and `LoadAll` to load the embedded DLLs at startup and bind all exports, so the Delphi code can call the C functions directly.
+
+### Getting Started
+
+**Download a release** from the [Releases](https://github.com/tinyBigGAMES/Dlluminator/releases) page. The release includes the tinycc compiler and supporting files required by CImporter. Cloning the repo alone is not sufficient for CImporter functionality since the tinycc binaries are not checked into version control.
+
+After downloading:
+
+1. Extract the archive to a convenient location.
+2. Add the `src` folder to your Delphi project search path.
+3. Add `Dlluminator` to your `uses` clause for memory loading.
+4. Add `Dlluminator.CImporter` (plus `Dlluminator.Utils`, `Dlluminator.Config`, `Dlluminator.TOML`) for C header import generation.
+5. For CImporter, ensure the `tinycc` folder (containing `tcc.exe`, `libtcc.dll`, and `include/`) is accessible relative to your project.
+
+Created and tested with **Delphi 12.3** on **Windows 11 64-bit (version 24H2)**.
 
 ### Features
 
-- **LoadLibrary** — Loads a DLL from a memory buffer without writing to the disk.
-- **Named LoadLibrary** — Loads a DLL from memory and registers it under a module name, enabling other memory-loaded DLLs to import from it.
-- **RegisterDllData** — Registers DLL data (from a pointer or an embedded resource) for deferred loading — nothing is loaded until you say so.
-- **LoadAll** — Loads all registered DLLs in the correct dependency order automatically, using depth-first topological resolution.
-- **FreeLibrary** — Unloads the DLL from memory, ensuring all associated resources are properly released.
-- **GetProcAddress** — Retrieves the address of an exported function within the loaded DLL, enabling direct function calls.
-- **Circular Dependency Detection** — Detects and reports circular dependency chains during auto-resolution.
-- **Comprehensive Error Handling** — Manages issues such as invalid DLL data, memory allocation failures, and function resolution issues.
+**Memory DLL Loading**
 
-### Key Benefits
+- **LoadLibrary (basic)** loads a DLL from a raw memory buffer. Returns a standard `HMODULE` compatible with `GetProcAddress` and `FreeLibrary`.
+- **LoadLibrary (named)** loads a DLL from memory and registers it under a module name so other memory-loaded DLLs can import from it.
+- **RegisterDllData (pointer)** registers raw DLL bytes for deferred loading. Nothing is loaded until you call `LoadLibrary(name)` or `LoadAll`.
+- **RegisterDllData (resource)** registers a DLL by `RT_RCDATA` resource name. The resource is read on demand during loading, then freed immediately.
+- **LoadLibrary (by name)** loads a registered DLL by name, automatically resolving all registered dependencies first via depth-first topological sorting.
+- **LoadAll** loads every registered DLL in the correct dependency order with a single call.
+- **Circular dependency detection** catches and reports dependency cycles via `ERROR_CIRCULAR_DEPENDENCY`.
+- **Windows 11 24H2+ compatible** using `LdrGetDllHandle` and `LdrLoadDll` hooks for robust module lookup on builds where internal loader structures changed.
 
-- **Increased Security 🔒** — By eliminating the need to store DLLs on disk, **Dlluminator** reduces the risk of DLL hijacking and unauthorized access.
-- **Performance Improvement ⚡** — Since DLLs are handled in-memory, the overhead of disk I/O operations is avoided, resulting in faster execution.
-- **Flexibility** — Suitable for embedding DLLs in the main executable, loading encrypted or obfuscated DLLs, and supporting dynamic plugin systems where plugins are provided as in-memory modules.
-- **Cross-DLL Dependencies 🔗** — Load multiple DLLs from memory where one depends on another. Dlluminator resolves imports between memory-loaded modules using manual IAT resolution.
-- **Auto-Dependency Resolution** — Register all your DLLs upfront, call `LoadAll`, and Dlluminator figures out the correct loading order by parsing PE import tables.
-- **Windows 11 24H2+ Compatible** — Works around internal loader changes in Windows 11 build 26200+ that broke traditional approaches. Uses `LdrGetDllHandle` and `LdrLoadDll` hooks for robust module lookup.
-- **Compatibility** — Compatible with standard DLL interfaces, allowing for easy integration with existing applications.
+**CImporter: C Header to Delphi Import Generator**
 
-### Usage Scenarios
+- Preprocesses C headers using the bundled tinycc compiler (macro expansion, includes).
+- Parses the preprocessed output into structs, enums, unions, typedefs, function declarations, and `#define` constants.
+- Generates a complete Delphi unit (`.pas`) with T-prefixed record types, P-prefixed pointer types, Cardinal-based enums with const groups, and typed function pointer variables.
+- Generates a `.rc` resource script and compiles it to `.RES` via `brcc32`, embedding the DLL binary as `RT_RCDATA` with an obfuscated GUID resource name.
+- The generated unit's `initialization` section calls `RegisterDllData` + `LoadAll` to load the DLL from the embedded resource at program startup and bind all exports via `GetProcAddress`.
+- The `finalization` section nils all function pointers and calls `FreeLibrary`.
+- Supports cross-unit dependencies (e.g. `sdl3_image.pas` adds `sdl3` to its `uses` clause via `AddUsesUnit`).
+- Supports function renaming (`AddFunctionRename`) for Delphi keyword conflicts.
+- Supports type exclusion (`AddExcludedType`) for skipping unwanted C types.
+- Supports file content insertion (`InsertFileBefore`) for injecting additional Delphi code.
+- Configuration can be saved to and loaded from TOML files for reproducible builds.
 
-#### Embedding DLLs 📦
+### How Dependency Resolution Works
 
-Embed DLLs directly within your executable. **Dlluminator** allows you to store DLLs as resources, static byte arrays or encrypted data and load them into memory at runtime, removing the need to distribute them as separate files.
+A common problem with memory-loaded DLLs is that the Windows loader cannot resolve imports between them. If `sdl3_image.dll` imports functions from `sdl3.dll`, and both are loaded from memory, the loader has no way to find `sdl3.dll` by name because it was never loaded from disk.
 
-#### Encrypted DLL Loading 🔐
+Dlluminator solves this in three steps:
 
-Enhance application security by storing DLLs in an encrypted form, which can then be decrypted into memory before loading with **Dlluminator**. This reduces the risk of reverse engineering.
+1. **Registration.** You call `RegisterDllData` for each DLL, associating a module name (e.g. `'sdl3.dll'`, `'sdl3_image.dll'`) with its raw bytes or an embedded resource. Order does not matter.
 
-#### Dynamic Plugin Systems 🔌
+2. **Import table parsing.** When `LoadAll` (or `LoadLibrary(name)`) is called, Dlluminator reads the raw PE import table of each DLL to discover its dependencies. It converts import directory RVAs to file offsets to read the data from unmapped PE bytes, so no prior loading is needed.
 
-Load plugins dynamically as in-memory DLLs. This approach provides a clean and secure method of extending application functionality without relying on the filesystem.
+3. **Depth-first topological loading.** For each DLL, Dlluminator recursively loads its dependencies before loading the DLL itself. Each module is loaded with `DONT_RESOLVE_DLL_REFERENCES` (so the Windows loader maps and relocates it but does not resolve imports), then Dlluminator walks the IAT manually. For each imported function, it checks the internal module registry first (for memory-loaded DLLs) and falls back to `GetModuleHandle`/`LoadLibrary` for system DLLs. After all imports are resolved, the DLL's entry point is called.
 
-#### Multi-DLL Frameworks 🔗
+The result is that `sdl3_image.dll` can call functions in `sdl3.dll` even though both were loaded entirely from memory, and you never had to think about loading order.
 
-Load an entire framework of interdependent DLLs from memory. Register all modules upfront with `RegisterDllData`, call `LoadAll`, and Dlluminator loads them in the correct order — even if DllC depends on DllB which depends on DllA.
+On **Windows 11 24H2+**, the internal loader changed its module lookup structures. Simply patching `BaseDllName` in the LDR entry is no longer sufficient. Dlluminator handles this by installing persistent hooks on `LdrGetDllHandle` and `LdrLoadDll` in ntdll. When the loader cannot find a module by its internal lookup, the hooks check Dlluminator's module registry and return the correct handle.
 
-### Public Functions
+### Project Structure
 
-#### LoadLibrary (basic)
+```
+repo/
+  src/                        Delphi source units
+    Dlluminator.pas             Core memory DLL loader
+    Dlluminator.CImporter.pas   C header to Delphi converter
+    Dlluminator.Config.pas      TOML-based configuration for CImporter
+    Dlluminator.TOML.pas        TOML parser
+    Dlluminator.Utils.pas       Shared utilities
+    Dlluminator.Defines.inc     Compiler defines
+  tinycc/                     tinycc compiler (from release download)
+    tcc.exe                     C compiler/preprocessor
+    libtcc.dll                  tinycc shared library
+    include/                    C standard headers + Windows SDK headers
+  libs/                       C library packages for CImporter
+    raylib/                     raylib headers, DLL, and TOML config
+    sdl3/                       SDL3 headers, DLL, and TOML config
+    sdl3_image/                 SDL3_image headers, DLL, and TOML config
+    sdl3_mixer/                 SDL3_mixer headers, DLL, and TOML config
+  imports/                    Generated Delphi import units + .rc/.RES files
+    raylib.pas                  Generated raylib bindings
+    sdl3.pas                    Generated SDL3 bindings
+    sdl3_image.pas              Generated SDL3_image bindings
+    sdl3_mixer.pas              Generated SDL3_mixer bindings
+  examples/
+    ImportLibs/                 Example: generate imports from C headers
+    TestImports/                Example: use generated imports with Dlluminator
+  bin/                        Built executables
+```
 
-Loads a DLL from a memory buffer without writing to disk. Returns a standard `HMODULE` handle compatible with `GetProcAddress` and `FreeLibrary`.
+### Example: CImporter Usage
 
-- **Parameters**: `AData: Pointer` — Pointer to the raw DLL binary data. `ASize: NativeUInt` — Size in bytes.
-- **Returns**: `THandle` — Module handle, or `0` on failure.
+Generate Delphi bindings for raylib from its C header:
 
-#### LoadLibrary (named)
+```delphi
+uses
+  Dlluminator.CImporter;
 
-Loads a DLL from memory and registers it under a module name, enabling other memory-loaded DLLs to import from it. Dependencies must be loaded before dependents when using this overload directly.
+var
+  LImporter: TDlmCImporter;
+begin
+  LImporter := TDlmCImporter.Create();
+  try
+    LImporter.SetModuleName('raylib');
+    LImporter.SetDllName('raylib');
+    LImporter.SetOutputPath('..\imports');
+    LImporter.SetDllPath('..\libs\raylib\bin\raylib.dll');
+    LImporter.AddIncludePath('..\libs\raylib\include');
+    LImporter.AddSourcePath('..\libs\raylib\include');
+    LImporter.AddExcludedType('va_list');
+    LImporter.SetHeader('..\libs\raylib\include\raylib.h');
 
-- **Parameters**: `AData: Pointer` — Pointer to the raw DLL binary data. `ASize: NativeUInt` — Size in bytes. `AModuleName: string` — Name to register (e.g., `'DllA.dll'`).
-- **Returns**: `THandle` — Module handle, or `0` on failure.
+    // Save config for reproducible builds
+    LImporter.SaveToConfig('..\libs\raylib\raylib.toml');
 
-#### RegisterDllData (pointer)
+    if LImporter.Process() then
+      WriteLn('Success')
+    else
+      WriteLn('Failed: ', LImporter.GetLastError());
+  finally
+    LImporter.Free();
+  end;
+end;
+```
 
-Registers raw DLL data for deferred loading. Does NOT load the DLL — just stores a reference. The caller owns the memory and must keep it valid until loading occurs.
+This produces `raylib.pas` (the Delphi import unit), `raylib.rc` (resource script), and `raylib.RES` (compiled resource embedding the DLL). Add `raylib.pas` to your project, link the `.RES`, and call raylib functions directly from Delphi. The DLL loads from the embedded resource at program startup.
 
-- **Parameters**: `AModuleName: string` — Module name (e.g., `'DllA.dll'`). `AData: Pointer` — Pointer to raw DLL bytes. `ASize: NativeUInt` — Size in bytes.
+For libraries with dependencies, use `AddUsesUnit` to reference an already-generated unit:
 
-#### RegisterDllData (resource)
+```delphi
+// sdl3_image depends on sdl3 — tell CImporter about it
+LImporter.SetModuleName('sdl3_image');
+LImporter.SetDllName('sdl3_image');
+LImporter.AddIncludePath('..\libs\sdl3\include', 'sdl3');
+LImporter.AddUsesUnit('sdl3');
+LImporter.SetHeader('..\libs\sdl3_image\include\SDL3\SDL_image.h');
+LImporter.Process();
+```
 
-Registers a DLL from an embedded `RT_RCDATA` resource for deferred loading. The resource is read on demand when `LoadLibrary` or `LoadAll` is called — no data is held in memory until then.
+The generated `sdl3_image.pas` will include `sdl3` in its `uses` clause and register both DLLs for dependency-aware loading.
 
-- **Parameters**: `AModuleName: string` — Module name (e.g., `'DllA.dll'`). `AResName: string` — Resource name in the executable.
+### Example: Using Generated Imports
 
-#### LoadLibrary (by name)
+Once the import units are generated, using them is straightforward. The DLLs load from embedded resources automatically:
 
-Loads a previously registered DLL by name, automatically resolving and loading all dependencies first (depth-first topological sort). If the module is already loaded, returns the existing handle.
+```delphi
+uses
+  raylib;  // Generated by CImporter — DLL loads at startup
 
-- **Parameters**: `AModuleName: string` — Name of a registered module.
-- **Returns**: `THandle` — Module handle, or `0` on failure.
+begin
+  InitWindow(800, 450, 'Dlluminator - Raylib');
+  SetTargetFPS(60);
+  while not WindowShouldClose() do
+  begin
+    BeginDrawing();
+      ClearBackground(RAYWHITE);
+      DrawText('Hello from Dlluminator!', 280, 200, 20, DARKGREEN);
+    EndDrawing();
+  end;
+  CloseWindow();
+end;
+```
 
-#### LoadAll
+SDL3 with SDL3_image (cross-DLL dependency, both loaded from memory):
 
-Loads all registered DLLs in the correct dependency order. Iterates the data registry and calls `LoadLibrary(AModuleName)` for each entry — dependency ordering is handled automatically.
+```delphi
+uses
+  sdl3,        // Loaded first (dependency)
+  sdl3_image;  // Loaded second, imports from sdl3
 
-- **Returns**: `Boolean` — `True` if all modules loaded successfully, `False` on first failure.
+var
+  LWindow: PSDL_Window;
+  LRenderer: PSDL_Renderer;
+  LTexture: PSDL_Texture;
+begin
+  SDL_Init(SDL_INIT_VIDEO);
+  LWindow := SDL_CreateWindow('SDL3 + SDL3_image', 1280, 720, 0);
+  LRenderer := SDL_CreateRenderer(LWindow, nil);
 
-### Example: Single DLL
+  // SDL3_image calls SDL3 functions internally — this just works
+  LTexture := IMG_LoadTexture(LRenderer, 'image.png');
+
+  // ... render loop ...
+
+  SDL_DestroyTexture(LTexture);
+  SDL_DestroyRenderer(LRenderer);
+  SDL_DestroyWindow(LWindow);
+  SDL_Quit();
+end;
+```
+
+### Example: Manual Memory Loading (Without CImporter)
 
 Load a single DLL from an embedded resource:
 
@@ -118,7 +219,6 @@ begin
     LDllHandle := Dlluminator.LoadLibrary(LResStream.Memory, LResStream.Size);
     if LDllHandle <> 0 then
     try
-      // Use GetProcAddress / FreeLibrary as normal
       MyFunc := GetProcAddress(LDllHandle, 'MyFunction');
     finally
       FreeLibrary(LDllHandle);
@@ -131,7 +231,7 @@ end;
 
 ### Example: Multiple DLLs with Auto-Dependency Resolution
 
-Register DLLs from embedded resources in any order, then load everything with a single call. Dlluminator parses import tables and loads dependencies first automatically:
+Register DLLs from embedded resources in any order, then load everything with a single call:
 
 ```delphi
 uses
@@ -141,75 +241,70 @@ uses
 var
   LDllBHandle: THandle;
 begin
-  // Register DLLs from resources — order doesn't matter.
-  // DllB imports from DllA.dll, but we register DllB first.
+  // Register DLLs — order does not matter
   RegisterDllData('DllB.dll', 'f8e7d6c5b4a3219087654321fedcba98');
   RegisterDllData('DllA.dll', 'a1b2c3d4e5f6478890abcdef12345678');
 
-  // Load everything — DllA is loaded first (dependency), then DllB.
+  // Load everything — DllA loads first (dependency), then DllB
   if LoadAll() then
   begin
-    // Retrieve handles for individual modules.
     LDllBHandle := LoadLibrary('DllB.dll');
-
-    // DllB can call DllA's exports — cross-DLL calls work.
     GetCombinedValue := GetProcAddress(LDllBHandle, 'GetCombinedValue');
   end;
 end;
 ```
 
-### Example: Manual Dependency Ordering (Advanced)
+### Public API Reference
 
-If you prefer explicit control over loading order, use the named `LoadLibrary` overload directly:
+**Dlluminator unit**
 
-```delphi
-uses
-  WinApi.Windows,
-  Dlluminator;
+| Function | Description |
+|---|---|
+| `LoadLibrary(AData, ASize)` | Load a DLL from a memory buffer. Returns `HMODULE` or `0`. |
+| `LoadLibrary(AData, ASize, AModuleName)` | Load from memory and register under a name for cross-DLL imports. |
+| `RegisterDllData(AModuleName, AData, ASize)` | Register raw DLL bytes for deferred loading. |
+| `RegisterDllData(AModuleName, AResName)` | Register an `RT_RCDATA` resource for deferred loading. |
+| `LoadLibrary(AModuleName)` | Load a registered DLL by name with automatic dependency resolution. |
+| `LoadAll()` | Load all registered DLLs in correct dependency order. Returns `True`/`False`. |
 
-var
-  LDllAHandle: THandle;
-  LDllBHandle: THandle;
-  LResStream: TResourceStream;
-begin
-  // Step 1: Load the dependency first and register its name.
-  LResStream := TResourceStream.Create(HInstance, 'DllAResource', RT_RCDATA);
-  try
-    LDllAHandle := LoadLibrary(LResStream.Memory, LResStream.Size, 'DllA.dll');
-  finally
-    LResStream.Free();
-  end;
+After loading, use standard `GetProcAddress` and `FreeLibrary` as with any DLL.
 
-  // Step 2: Load the dependent DLL. Its import table references
-  // 'DllA.dll', which is resolved against the registered module.
-  LResStream := TResourceStream.Create(HInstance, 'DllBResource', RT_RCDATA);
-  try
-    LDllBHandle := LoadLibrary(LResStream.Memory, LResStream.Size, 'DllB.dll');
-  finally
-    LResStream.Free();
-  end;
+**Dlluminator.CImporter unit**
 
-  // Both are now fully functional — DllB can call DllA's exports.
-  MyFunc := GetProcAddress(LDllBHandle, 'MyFunction');
-end;
-```
+| Method | Description |
+|---|---|
+| `SetHeader(APath)` | Set the C header file to process. |
+| `SetModuleName(AName)` | Set the output Delphi unit name. |
+| `SetDllName(AName)` | Set the DLL filename for the generated bindings. |
+| `SetDllPath(APath)` | Set path to the actual DLL binary (embedded as resource). |
+| `SetOutputPath(APath)` | Set output directory for generated files. |
+| `AddIncludePath(APath[, ATag])` | Add a C include search path. |
+| `AddSourcePath(APath)` | Add a source filter path (only declarations from these paths are emitted). |
+| `AddUsesUnit(AUnit)` | Add a unit to the generated `uses` clause (for cross-unit dependencies). |
+| `AddExcludedType(AName)` | Exclude a C type/define from output. |
+| `AddFunctionRename(AOld, ANew)` | Rename a function to avoid Delphi keyword conflicts. |
+| `InsertFileBefore(AMarker, AFilePath)` | Insert file content before a marker in the generated unit. |
+| `SetSavePreprocessed(AValue)` | Save the preprocessed C output for debugging. |
+| `SaveToConfig(APath)` | Save configuration to a TOML file. |
+| `Process()` | Run the import generation. Returns `True` on success. |
+| `GetLastError()` | Get the error message if `Process` returned `False`. |
 
-### Installation
+### Usage Scenarios
 
-1. **Download** — Visit the official **Dlluminator** repository and download the <a href="https://github.com/tinyBigGAMES/Dlluminator/archive/refs/heads/main.zip" target="_blank">latest release</a>.
+**Embedding DLLs** 📦 Store DLLs as resources inside your executable. Dlluminator loads them from memory at runtime, eliminating the need to distribute separate DLL files.
 
-2. **Extract** — Unzip the contents to a convenient location on your filesystem.
+**Encrypted DLL Loading** 🔐 Store DLLs in encrypted form, decrypt into memory at runtime, and load with Dlluminator. The DLL never touches the disk.
 
-3. **Add to Project** — Add **Dlluminator** to your project's `uses` section. Ensure the path to the source file is correctly configured in your project settings.
+**Dynamic Plugin Systems** 🔌 Load plugins as in-memory DLLs for a clean and secure extension mechanism without filesystem dependencies.
 
-4. **Integration** — **Dlluminator** provides `LoadLibrary` to load DLLs directly from memory. Once loaded, standard Windows API calls such as `FreeLibrary` and `GetProcAddress` work as if the DLL were loaded from the filesystem. For cross-DLL dependencies, use `RegisterDllData` + `LoadAll` for automatic resolution, or the named `LoadLibrary` overload for manual control.
+**Multi-DLL Frameworks** 🔗 Load an entire framework of interdependent DLLs from memory. Register all modules with `RegisterDllData`, call `LoadAll`, and Dlluminator loads them in the correct order.
 
-5. **Test** — Thoroughly test your project after integrating to ensure all DLLs are correctly loaded, utilized, and unloaded. Created/tested with Delphi 12.3, on Windows 11, 64-bit (version 24H2).
+**Automated Delphi Bindings** 🔧 Use CImporter to generate Delphi import units from C headers. The generated units handle DLL loading, export binding, and cleanup automatically. Save the CImporter configuration as a TOML file and regenerate bindings whenever the C library updates.
 
 ### Acknowledgments
 
 This project was inspired by:
-  * perfect-loader - https://github.com/EvanMcBroom/perfect-loader
+  * [perfect-loader](https://github.com/EvanMcBroom/perfect-loader)
 
 ## Contributing
 

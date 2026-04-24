@@ -1,83 +1,107 @@
-{===============================================================================
-   ___  _ _            _           _
-  |   \| | |_  _ _ __ (_)_ _  __ _| |_ ___ _ _ ™
-  | |) | | | || | '  \| | ' \/ _` |  _/ _ | '_|
-  |___/|_|_|\_,_|_|_|_|_|_||_\__,_|\__\___|_|
-     Load Win64 DLLs from memory in Delphi
+﻿{===============================================================================
+  Dlluminator™ - Win64 Memory DLL Loader
 
- Copyright © 2025-present tinyBigGAMES™ LLC
- All Rights Reserved.
+  Copyright © 2025-present tinyBigGAMES™ LLC
+  All Rights Reserved.
 
- https://github.com/tinyBigGAMES/Dlluminator
-
- BSD 3-Clause License
-
- Redistribution and use in source and binary forms, with or without
- modification, are permitted provided that the following conditions are met:
-
- 1. Redistributions of source code must retain the above copyright notice,
-    this list of conditions and the following disclaimer.
-
- 2. Redistributions in binary form must reproduce the above copyright notice,
-    this list of conditions and the following disclaimer in the documentation
-    and/or other materials provided with the distribution.
-
- 3. Neither the name of the copyright holder nor the names of its
-    contributors may be used to endorse or promote products derived from
-    this software without specific prior written permission.
-
- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
- LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- POSSIBILITY OF SUCH DAMAGE.
-
- -----------------------------------------------------------------------------
+  See LICENSE for license information
 
  Summary:
-   The Dlluminator unit provides advanced functionality for loading
-   dynamic-link libraries (win64 DLLs) directly from memory. This unit
-   facilitates the loading of DLLs from byte arrays or memory streams,
-   retrieval of function addresses within the loaded DLL, and proper unloading
-   of the DLL module. Unlike traditional methods that rely on filesystem
-   operations, Dlluminator operates entirely in memory, offering a secure and
-   efficient alternative for DLL management.
+   Dlluminator loads Win64 DLLs directly from memory, bypassing the
+   filesystem entirely. It supports loading single DLLs from raw byte
+   buffers, loading multiple interdependent DLLs with automatic dependency
+   resolution, and embedding DLLs as RT_RCDATA resources in the executable
+   for zero-file deployment.
 
  Remarks:
-   The Dlluminator unit is meticulously crafted to cater to expert Delphi
-   developers who require low-level control over DLL operations. By
-   eliminating the dependency on the filesystem, this unit enhances security
-   by preventing unauthorized access to DLL files and reduces I/O overhead,
-   thereby improving application performance.
+   The unit hooks NT native API functions (NtMapViewOfSection,
+   NtQueryVirtualMemory, NtManageHotPatch) to redirect the Windows loader
+   into mapping a pre-allocated memory region instead of a file on disk.
+   After loading, standard WinAPI calls (GetProcAddress, FreeLibrary) work
+   as normal.
+
+   For multi-DLL scenarios where one memory-loaded module imports from
+   another (e.g. sdl3_image.dll importing from sdl3.dll), Dlluminator
+   provides a data registry and automatic topological dependency resolution.
+   DLLs can be registered in any order via RegisterDllData, then loaded
+   with a single call to LoadAll. The loader parses each DLL's PE import
+   table, recursively loads dependencies depth-first, resolves imports
+   manually via the internal module registry, and calls each DLL's entry
+   point in the correct order.
+
+   On Windows 11 24H2+ (build 26200+), internal loader data structures
+   changed in ways that broke traditional post-hoc name patching. Dlluminator
+   works around this by hooking LdrGetDllHandle and LdrLoadDll to intercept
+   module lookups, and by re-linking the LdrpHashTable entry to the correct
+   bucket after patching BaseDllName and FullDllName.
 
  Key Features:
-   - LoadLibrary: A drop-in replacement to loads a DLL from a memory buffer,
-     such as a byte array or memory stream, without writing to the disk.
-   - You can then use standard win32 GetProcAddress and FreeLibrary as normal
+   - LoadLibrary (basic): Loads a DLL from a raw memory buffer without
+     touching the disk. Returns a standard HMODULE compatible with
+     GetProcAddress and FreeLibrary.
+   - LoadLibrary (named): Loads a DLL from memory and registers it under a
+     module name, enabling other memory-loaded DLLs to import from it.
+   - RegisterDllData (pointer): Registers raw DLL bytes for deferred loading.
+     Nothing is loaded until LoadLibrary(name) or LoadAll is called.
+   - RegisterDllData (resource): Registers a DLL by RT_RCDATA resource name.
+     The resource is read on demand during loading, then freed immediately.
+   - LoadLibrary (by name): Loads a registered DLL by name, automatically
+     resolving and loading all registered dependencies first using depth-first
+     topological sorting of PE import tables.
+   - LoadAll: Loads every registered DLL in the correct dependency order with
+     a single call.
+   - Circular dependency detection with ERROR_CIRCULAR_DEPENDENCY reporting.
+   - Manual IAT resolution for memory-loaded module chains, falling back to
+     the Windows API for system DLLs.
+   - Module name patching with LdrpHashTable bucket re-linking so the Windows
+     loader can find memory-loaded modules by name.
+   - Persistent LdrGetDllHandle and LdrLoadDll hooks for robust module lookup
+     on Windows 11 24H2+.
+   - Post-load flags: NO_HEADERS (zero PE headers), NO_MODLIST (unlink from
+     PEB loader lists), NO_THDCALL (disable thread callbacks), OVRHDRS
+     (overwrite headers from the original file).
+   - Companion CImporter tool (Dlluminator.CImporter unit) for converting C
+     headers into Delphi import units that use Dlluminator for loading.
 
- -----------------------------------------------------------------------------
- This project was inspired by:
-  * perfect-loader - https://github.com/EvanMcBroom/perfect-loader
+ Inspired by:
+   perfect-loader - https://github.com/EvanMcBroom/perfect-loader
 
- -----------------------------------------------------------------------------
- >>> CHANGELOG <<<
+ Changelog:
 
-  Version 0.2.0
- -------------
-  - Added overloaded LoadLibrary with AModuleName parameter for dependency
-    resolution between memory-loaded DLLs
+   Version 0.2.0
+     - Added named LoadLibrary overload with AModuleName parameter for
+       cross-DLL dependency resolution between memory-loaded modules
+     - Added RegisterDllData (pointer and resource overloads) for deferred
+       DLL registration without immediate loading
+     - Added LoadLibrary(AModuleName) with automatic depth-first topological
+       dependency resolution by parsing raw PE import tables
+     - Added LoadAll to load every registered DLL in correct dependency order
+     - Added circular dependency detection and ERROR_CIRCULAR_DEPENDENCY
+     - Added manual IAT resolution (ManualResolveImports) for resolving
+       imports across memory-loaded modules
+     - Added module name patching (PatchModuleName) with LdrpHashTable
+       bucket re-linking using RtlHashUnicodeString
+     - Added persistent LdrGetDllHandle hook for module lookup redirection
+       on Windows 11 24H2+ where internal loader structures changed
+     - Added persistent LdrLoadDll hook for import resolver redirection
+     - Added NtQueryVirtualMemory hook for MemoryImageExtensionInformation
+       compatibility on Windows 11 24H2+
+     - Added NtManageHotPatch hook for hotpatch query compatibility
+     - Added internal module registry (name-to-handle map, 64 entries)
+     - Added internal data registry (name-to-data/resource map, 64 entries)
+     - Added post-load flags: LOAD_FLAGS_NO_HEADERS, LOAD_FLAGS_NO_MODLIST,
+       LOAD_FLAGS_NO_THDCALL, LOAD_FLAGS_OVRHDRS
+     - Added ParseImportsFromRawPE and RvaToFileOffset for reading import
+       tables from unmapped PE data
+     - Added HasRegisteredDependencies check
+     - Added CallModuleEntryPoint for manual DllMain invocation
 
- Version 0.1.0
- -------------
-  - Initial release
+   Version 0.1.0
+     - Initial release with basic memory DLL loading via NtMapViewOfSection
+       hook and LoadLibraryExW redirection
 
 ===============================================================================}
+
 
 unit Dlluminator;
 
@@ -2842,6 +2866,7 @@ var
   LFuncAddr: Pointer;
   LBase: NativeUInt;
   LRegistryIdx: Integer;
+  LOldProtect: DWORD;
 begin
   Result := False;
   LBase := NativeUInt(AModuleBase);
@@ -2923,6 +2948,7 @@ begin
       end;
 
       // Write the resolved address to the IAT
+      VirtualProtect(LFuncRef, SizeOf(NativeUInt), PAGE_READWRITE, @LOldProtect);
       LFuncRef^ := NativeUInt(LFuncAddr);
 
       Inc(LThunkRef);

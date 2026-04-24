@@ -83,3 +83,16 @@ modules/
 bin/build.cmd
 *.dsv
 
+_checkpoint.cmd
+_checkpoint_base.cmd
+_distro.cmd
+checkpoint.yml
+checkpoint.zip
+checkpoint_base.zip
+distro.yml
+/libs
+rename_utils.ps1
+/tinycc
+/imports/*.c
+/imports/*.rc
+/bin/res
