@@ -1432,7 +1432,7 @@ uses
 
 const
   CDllName = 'raylib.dll';
-  CResName = 'r9fc815cf31654253b421c58b0125f596';
+  CResName = 'r8feaea72529943ca88b2f002578b96d2';
 
 var
   GDllHandle: THandle = 0;

@@ -165,7 +165,7 @@ begin
     LImporter.AddUsesUnit('sdl3');
     LImporter.AddExcludedType('va_list');
     LImporter.SetHeader('..\libs\sdl3_mixer\include\SDL3\SDL_mixer.h');
-    LImporter.SaveToConfig('..\libs\sdl3_image\sdl3_mixer.toml');
+    LImporter.SaveToConfig('..\libs\sdl3_mixer\sdl3_mixer.toml');
     if LImporter.Process() then
       TDlmUtils.PrintLn(COLOR_CYAN + 'Success')
     else

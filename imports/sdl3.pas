@@ -5289,7 +5289,7 @@ uses
 
 const
   CDllName = 'sdl3.dll';
-  CResName = 'r3804ee60a31d43f1904387693c2f2d24';
+  CResName = 'r9c7010b1dd474cb6885dbbb015b0bdcb';
 
 var
   GDllHandle: THandle = 0;
