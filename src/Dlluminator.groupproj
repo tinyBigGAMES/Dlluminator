@@ -1,22 +1,13 @@
 ﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
-        <ProjectGuid>{05F917AE-2630-403A-B5B6-539D95F966B0}</ProjectGuid>
+        <ProjectGuid>{682B33A7-CEC0-47F8-ABC1-F85B09EB5272}</ProjectGuid>
     </PropertyGroup>
     <ItemGroup>
-        <Projects Include="..\examples\testbed\TestDLL\TestDLL.dproj">
+        <Projects Include="..\examples\importlibs\ImportLibs.dproj">
             <Dependencies/>
         </Projects>
-        <Projects Include="..\examples\testbed\Testbed.dproj">
-            <Dependencies>..\examples\testbed\TestDLL\TestDLL.dproj</Dependencies>
-        </Projects>
-        <Projects Include="..\examples\testbed\TestDeps\DllA\DllA.dproj">
+        <Projects Include="..\examples\TestImports\TestImports.dproj">
             <Dependencies/>
-        </Projects>
-        <Projects Include="..\examples\testbed\TestDeps\DllB\DllB.dproj">
-            <Dependencies/>
-        </Projects>
-        <Projects Include="..\examples\testbed\TestDeps\TestDeps.dproj">
-            <Dependencies>..\examples\testbed\TestDeps\DllB\DllB.dproj;..\examples\testbed\TestDeps\DllA\DllA.dproj</Dependencies>
         </Projects>
     </ItemGroup>
     <ProjectExtensions>
@@ -26,59 +17,32 @@
             <Default.Personality/>
         </BorlandProject>
     </ProjectExtensions>
-    <Target Name="TestDLL">
-        <MSBuild Projects="..\examples\testbed\TestDLL\TestDLL.dproj"/>
+    <Target Name="ImportLibs">
+        <MSBuild Projects="..\examples\importlibs\ImportLibs.dproj"/>
     </Target>
-    <Target Name="TestDLL:Clean">
-        <MSBuild Projects="..\examples\testbed\TestDLL\TestDLL.dproj" Targets="Clean"/>
+    <Target Name="ImportLibs:Clean">
+        <MSBuild Projects="..\examples\importlibs\ImportLibs.dproj" Targets="Clean"/>
     </Target>
-    <Target Name="TestDLL:Make">
-        <MSBuild Projects="..\examples\testbed\TestDLL\TestDLL.dproj" Targets="Make"/>
+    <Target Name="ImportLibs:Make">
+        <MSBuild Projects="..\examples\importlibs\ImportLibs.dproj" Targets="Make"/>
     </Target>
-    <Target Name="Testbed" DependsOnTargets="TestDLL">
-        <MSBuild Projects="..\examples\testbed\Testbed.dproj"/>
+    <Target Name="TestImports">
+        <MSBuild Projects="..\examples\TestImports\TestImports.dproj"/>
     </Target>
-    <Target Name="Testbed:Clean" DependsOnTargets="TestDLL:Clean">
-        <MSBuild Projects="..\examples\testbed\Testbed.dproj" Targets="Clean"/>
+    <Target Name="TestImports:Clean">
+        <MSBuild Projects="..\examples\TestImports\TestImports.dproj" Targets="Clean"/>
     </Target>
-    <Target Name="Testbed:Make" DependsOnTargets="TestDLL:Make">
-        <MSBuild Projects="..\examples\testbed\Testbed.dproj" Targets="Make"/>
-    </Target>
-    <Target Name="DllA">
-        <MSBuild Projects="..\examples\testbed\TestDeps\DllA\DllA.dproj"/>
-    </Target>
-    <Target Name="DllA:Clean">
-        <MSBuild Projects="..\examples\testbed\TestDeps\DllA\DllA.dproj" Targets="Clean"/>
-    </Target>
-    <Target Name="DllA:Make">
-        <MSBuild Projects="..\examples\testbed\TestDeps\DllA\DllA.dproj" Targets="Make"/>
-    </Target>
-    <Target Name="DllB">
-        <MSBuild Projects="..\examples\testbed\TestDeps\DllB\DllB.dproj"/>
-    </Target>
-    <Target Name="DllB:Clean">
-        <MSBuild Projects="..\examples\testbed\TestDeps\DllB\DllB.dproj" Targets="Clean"/>
-    </Target>
-    <Target Name="DllB:Make">
-        <MSBuild Projects="..\examples\testbed\TestDeps\DllB\DllB.dproj" Targets="Make"/>
-    </Target>
-    <Target Name="TestDeps" DependsOnTargets="DllB;DllA">
-        <MSBuild Projects="..\examples\testbed\TestDeps\TestDeps.dproj"/>
-    </Target>
-    <Target Name="TestDeps:Clean" DependsOnTargets="DllB:Clean;DllA:Clean">
-        <MSBuild Projects="..\examples\testbed\TestDeps\TestDeps.dproj" Targets="Clean"/>
-    </Target>
-    <Target Name="TestDeps:Make" DependsOnTargets="DllB:Make;DllA:Make">
-        <MSBuild Projects="..\examples\testbed\TestDeps\TestDeps.dproj" Targets="Make"/>
+    <Target Name="TestImports:Make">
+        <MSBuild Projects="..\examples\TestImports\TestImports.dproj" Targets="Make"/>
     </Target>
     <Target Name="Build">
-        <CallTarget Targets="TestDLL;Testbed;DllA;DllB;TestDeps"/>
+        <CallTarget Targets="ImportLibs;TestImports"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="TestDLL:Clean;Testbed:Clean;DllA:Clean;DllB:Clean;TestDeps:Clean"/>
+        <CallTarget Targets="ImportLibs:Clean;TestImports:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="TestDLL:Make;Testbed:Make;DllA:Make;DllB:Make;TestDeps:Make"/>
+        <CallTarget Targets="ImportLibs:Make;TestImports:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>
