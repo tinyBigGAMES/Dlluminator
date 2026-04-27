@@ -213,6 +213,15 @@ type
     FuncInfo: TDlmCFunctionInfo;
   end;
 
+  { TDlmBindingMode }
+  TDlmBindingMode = (
+    bmStatic,           // DLL embedded as RCDATA, loaded via Dlluminator memory loader
+    bmDynamic,          // Traditional external linking: external CDllName
+    bmDynamicDelayed,   // Delayed external linking: external CDllName delayed
+    bmDynamicCustom,    // Exposes DlmBindExports(AHandle)/DlmUnbindExports for manual handle management
+    bmStaticVpk         // Exposes DlmBindExports(AVFS, AFilename)/DlmUnbindExports for Virtuoso VPK loading
+  );
+
   { TDlmInsertionInfo }
   TDlmInsertionInfo = record
     TargetLine: string;
@@ -260,6 +269,7 @@ type
     FInsertions: TList<TDlmInsertionInfo>;
     FReplacements: TList<TDlmReplacementInfo>;
     FCurrentSourceFile: string;
+    FBindingMode: TDlmBindingMode;
 
     function GetTccExePath(): string;
     function PreprocessHeader(const AHeaderFile: string; out APreprocessedSource: string): Boolean;
@@ -304,6 +314,18 @@ type
     procedure GenerateTypedConstants();
     procedure GenerateBindExports();
     procedure GenerateUnbindExports();
+    function BindingModeFromString(const AValue: string): TDlmBindingMode;
+    procedure GenerateModuleStatic();
+    procedure GenerateModuleDynamic();
+    procedure GenerateModuleDynamicDelayed();
+    procedure GenerateModuleDynamicCustom();
+    procedure GenerateModuleStaticVpk();
+    procedure GenerateInterfaceCommon();
+    procedure GenerateFunctionsExternal(const ADelayed: Boolean);
+    procedure GenerateDlmBindExportsCustom();
+    procedure GenerateDlmUnbindExportsCustom();
+    procedure GenerateDlmBindExportsVpk();
+    procedure GenerateDlmUnbindExportsVpk();
     function GenerateResName(): string;
     procedure ProcessInsertions();
 
@@ -332,6 +354,7 @@ type
     procedure SetModuleName(const AName: string);
     procedure SetDllName(const ADllName: string);
     procedure SetDllPath(const ADllPath: string);
+    procedure SetBindingMode(const AMode: TDlmBindingMode);
     function LoadFromConfig(const AFilename: string): Boolean;
     function SaveToConfig(const AFilename: string): Boolean;
     function GetLastError(): string;
@@ -812,6 +835,7 @@ begin
   FHeader := '';
   FLastError := '';
   FCurrentSourceFile := '';
+  FBindingMode := bmStatic;
   FIndent := 0;
   FPos := 0;
 
@@ -2219,30 +2243,30 @@ begin
 end;
 
 procedure TDlmCImporter.GenerateModule();
-var
-  LI: Integer;
 begin
   FOutput.Clear();
 
-  // === INTERFACE SECTION ===
+  // === Unit declaration + interface keyword (shared by all modes) ===
   EmitFmt('unit %s;', [FModuleName]);
   EmitLn();
   EmitLn('interface');
   EmitLn();
-  EmitLn('uses');
-  Inc(FIndent);
-  if FUsesUnits.Count > 0 then
-  begin
-    EmitLn('WinApi.Windows,');
-    for LI := 0 to FUsesUnits.Count - 2 do
-      EmitFmt('%s,', [FUsesUnits[LI]]);
-    EmitFmt('%s;', [FUsesUnits[FUsesUnits.Count - 1]]);
-  end
-  else
-    EmitLn('WinApi.Windows;');
-  Dec(FIndent);
-  EmitLn();
 
+  // Dispatch to mode-specific generation
+  if FBindingMode = bmStatic then
+    GenerateModuleStatic()
+  else if FBindingMode = bmDynamic then
+    GenerateModuleDynamic()
+  else if FBindingMode = bmDynamicDelayed then
+    GenerateModuleDynamicDelayed()
+  else if FBindingMode = bmDynamicCustom then
+    GenerateModuleDynamicCustom()
+  else if FBindingMode = bmStaticVpk then
+    GenerateModuleStaticVpk();
+end;
+
+procedure TDlmCImporter.GenerateInterfaceCommon();
+begin
   // Common pointer helper types not declared in Delphi
   EmitLn('type');
   Inc(FIndent);
@@ -2262,6 +2286,28 @@ begin
   GenerateForwardDecls();
   GenerateAllTypes();
   GenerateTypedConstants();
+end;
+
+procedure TDlmCImporter.GenerateModuleStatic();
+var
+  LI: Integer;
+begin
+  // === INTERFACE uses clause ===
+  EmitLn('uses');
+  Inc(FIndent);
+  if FUsesUnits.Count > 0 then
+  begin
+    EmitLn('WinApi.Windows,');
+    for LI := 0 to FUsesUnits.Count - 2 do
+      EmitFmt('%s,', [FUsesUnits[LI]]);
+    EmitFmt('%s;', [FUsesUnits[FUsesUnits.Count - 1]]);
+  end
+  else
+    EmitLn('WinApi.Windows;');
+  Dec(FIndent);
+  EmitLn();
+
+  GenerateInterfaceCommon();
   GenerateFunctions();
 
   // === IMPLEMENTATION SECTION ===
@@ -2303,6 +2349,153 @@ begin
   EmitLn('UnbindExports();');
   Dec(FIndent);
   EmitLn();
+  EmitLn('end.');
+end;
+
+procedure TDlmCImporter.GenerateModuleDynamic();
+var
+  LI: Integer;
+begin
+  // === INTERFACE uses clause ===
+  EmitLn('uses');
+  Inc(FIndent);
+  if FUsesUnits.Count > 0 then
+  begin
+    EmitLn('WinApi.Windows,');
+    for LI := 0 to FUsesUnits.Count - 2 do
+      EmitFmt('%s,', [FUsesUnits[LI]]);
+    EmitFmt('%s;', [FUsesUnits[FUsesUnits.Count - 1]]);
+  end
+  else
+    EmitLn('WinApi.Windows;');
+  Dec(FIndent);
+  EmitLn();
+
+  GenerateInterfaceCommon();
+  GenerateFunctionsExternal(False);
+
+  // === IMPLEMENTATION SECTION (empty) ===
+  EmitLn('implementation');
+  EmitLn();
+  EmitLn('end.');
+end;
+
+procedure TDlmCImporter.GenerateModuleDynamicDelayed();
+var
+  LI: Integer;
+begin
+  // === INTERFACE uses clause ===
+  EmitLn('uses');
+  Inc(FIndent);
+  if FUsesUnits.Count > 0 then
+  begin
+    EmitLn('WinApi.Windows,');
+    for LI := 0 to FUsesUnits.Count - 2 do
+      EmitFmt('%s,', [FUsesUnits[LI]]);
+    EmitFmt('%s;', [FUsesUnits[FUsesUnits.Count - 1]]);
+  end
+  else
+    EmitLn('WinApi.Windows;');
+  Dec(FIndent);
+  EmitLn();
+
+  GenerateInterfaceCommon();
+  EmitLn('{$WARN SYMBOL_PLATFORM OFF}');
+  GenerateFunctionsExternal(True);
+
+  // === IMPLEMENTATION SECTION (empty) ===
+  EmitLn('implementation');
+  EmitLn();
+  EmitLn('end.');
+end;
+
+procedure TDlmCImporter.GenerateModuleDynamicCustom();
+var
+  LI: Integer;
+begin
+  // === INTERFACE uses clause ===
+  EmitLn('uses');
+  Inc(FIndent);
+  if FUsesUnits.Count > 0 then
+  begin
+    EmitLn('WinApi.Windows,');
+    for LI := 0 to FUsesUnits.Count - 2 do
+      EmitFmt('%s,', [FUsesUnits[LI]]);
+    EmitFmt('%s;', [FUsesUnits[FUsesUnits.Count - 1]]);
+  end
+  else
+    EmitLn('WinApi.Windows;');
+  Dec(FIndent);
+  EmitLn();
+
+  GenerateInterfaceCommon();
+  GenerateFunctions();
+
+  // Public bind/unbind declarations in interface
+  EmitLn('procedure DlmBindExports(const AHandle: THandle);');
+  EmitLn('procedure DlmUnbindExports();');
+  EmitLn();
+
+  // === IMPLEMENTATION SECTION ===
+  EmitLn('implementation');
+  EmitLn();
+
+  EmitLn('var');
+  Inc(FIndent);
+  EmitLn('GDllHandle: THandle = 0;');
+  Dec(FIndent);
+  EmitLn();
+
+  GenerateDlmBindExportsCustom();
+  GenerateDlmUnbindExportsCustom();
+
+  EmitLn('end.');
+end;
+
+procedure TDlmCImporter.GenerateModuleStaticVpk();
+var
+  LI: Integer;
+begin
+  // === INTERFACE uses clause (includes Virtuoso units) ===
+  EmitLn('uses');
+  Inc(FIndent);
+  EmitLn('WinApi.Windows,');
+  if FUsesUnits.Count > 0 then
+  begin
+    for LI := 0 to FUsesUnits.Count - 1 do
+      EmitFmt('%s,', [FUsesUnits[LI]]);
+  end;
+  EmitLn('Virtuoso,');
+  EmitLn('Virtuoso.VFS;');
+  Dec(FIndent);
+  EmitLn();
+
+  GenerateInterfaceCommon();
+  GenerateFunctions();
+
+  // Public bind/unbind declarations in interface
+  EmitLn('procedure DlmBindExports(const AVFS: TVirtuosoVFS; const AFilename: string);');
+  EmitLn('procedure DlmUnbindExports();');
+  EmitLn();
+
+  // === IMPLEMENTATION SECTION ===
+  EmitLn('implementation');
+  EmitLn();
+  EmitLn('uses');
+  Inc(FIndent);
+  EmitLn('Dlluminator;');
+  Dec(FIndent);
+  EmitLn();
+
+  EmitLn('var');
+  Inc(FIndent);
+  EmitLn('GDllHandle: THandle = 0;');
+  Dec(FIndent);
+  EmitLn();
+
+  GenerateDlmBindExportsVpk();
+  GenerateDlmUnbindExportsVpk();
+
   EmitLn('end.');
 end;
 
@@ -3121,6 +3314,354 @@ begin
   EmitLn();
 end;
 
+function TDlmCImporter.BindingModeFromString(const AValue: string): TDlmBindingMode;
+var
+  LLower: string;
+begin
+  LLower := LowerCase(Trim(AValue));
+  if LLower = 'dynamic' then
+    Result := bmDynamic
+  else if LLower = 'dynamic_delayed' then
+    Result := bmDynamicDelayed
+  else if LLower = 'dynamic_custom' then
+    Result := bmDynamicCustom
+  else if LLower = 'static_vpk' then
+    Result := bmStaticVpk
+  else
+    Result := bmStatic;
+end;
+
+procedure TDlmCImporter.SetBindingMode(const AMode: TDlmBindingMode);
+begin
+  FBindingMode := AMode;
+end;
+
+procedure TDlmCImporter.GenerateFunctionsExternal(const ADelayed: Boolean);
+var
+  LFunc: TDlmCFunctionInfo;
+  LParam: TDlmCParamInfo;
+  LReturnType: string;
+  LParamStr: string;
+  LI: Integer;
+  LParamType: string;
+  LParamName: string;
+  LSkip: Boolean;
+  LDelayedStr: string;
+begin
+  if FFunctions.Count = 0 then
+    Exit;
+
+  // Emit the DLL name constant for external declarations
+  EmitLn('const');
+  Inc(FIndent);
+  EmitFmt('CDllName = ''%s'';', [FDllName]);
+  Dec(FIndent);
+  EmitLn();
+
+  if ADelayed then
+    LDelayedStr := ' delayed'
+  else
+    LDelayedStr := '';
+
+  for LFunc in FFunctions do
+  begin
+    if FExcludedFunctions.Contains(LFunc.FuncName) then
+      Continue;
+    if FunctionReferencesExcludedType(LFunc) then
+      Continue;
+
+    // Skip malformed functions
+    if (LFunc.ReturnType = '') or (LFunc.ReturnType = 'return') then
+      Continue;
+    if (Length(LFunc.ReturnType) = 1) and CharInSet(LFunc.ReturnType[1], ['a'..'z', 'A'..'Z']) then
+      Continue;
+
+    LSkip := False;
+    for LI := 0 to High(LFunc.Params) do
+    begin
+      if LFunc.Params[LI].TypeName = '' then
+      begin
+        LSkip := True;
+        Break;
+      end;
+      if (Length(LFunc.Params[LI].TypeName) = 1) and
+         CharInSet(LFunc.Params[LI].TypeName[1], ['a'..'z', 'A'..'Z']) then
+      begin
+        LSkip := True;
+        Break;
+      end;
+    end;
+    if LSkip then
+      Continue;
+
+    LParamStr := '';
+    for LI := 0 to High(LFunc.Params) do
+    begin
+      LParam := LFunc.Params[LI];
+      LParamType := MapCTypeToDelphi(LParam.TypeName, LParam.IsPointer,
+        LParam.PointerDepth, LParam.IsConstTarget);
+      if LParam.ParamName <> '' then
+        LParamName := 'A' + LParam.ParamName
+      else
+        LParamName := Format('AParam%d', [LI]);
+      if LI > 0 then
+        LParamStr := LParamStr + '; ';
+      LParamStr := LParamStr + Format('const %s: %s',
+        [SanitizeIdentifier(LParamName), LParamType]);
+    end;
+
+    if (LFunc.ReturnType = 'void') and not LFunc.ReturnIsPointer then
+      EmitFmt('procedure %s(%s); external CDllName%s;',
+        [GetDelphiFuncName(LFunc.FuncName), LParamStr, LDelayedStr])
+    else
+    begin
+      LReturnType := MapCTypeToDelphi(LFunc.ReturnType, LFunc.ReturnIsPointer,
+        LFunc.ReturnPointerDepth);
+      EmitFmt('function  %s(%s): %s; external CDllName%s;',
+        [GetDelphiFuncName(LFunc.FuncName), LParamStr, LReturnType, LDelayedStr]);
+    end;
+  end;
+
+  EmitLn();
+end;
+
+procedure TDlmCImporter.GenerateDlmBindExportsCustom();
+var
+  LFunc: TDlmCFunctionInfo;
+  LI: Integer;
+  LSkip: Boolean;
+begin
+  if FFunctions.Count = 0 then
+    Exit;
+
+  EmitLn('procedure DlmBindExports(const AHandle: THandle);');
+  EmitLn('begin');
+  Inc(FIndent);
+  EmitLn('GDllHandle := AHandle;');
+  EmitLn('if GDllHandle = 0 then');
+  Inc(FIndent);
+  EmitLn('Exit;');
+  Dec(FIndent);
+
+  for LFunc in FFunctions do
+  begin
+    if FExcludedFunctions.Contains(LFunc.FuncName) then
+      Continue;
+    if FunctionReferencesExcludedType(LFunc) then
+      Continue;
+    if (LFunc.ReturnType = '') or (LFunc.ReturnType = 'return') then
+      Continue;
+    if (Length(LFunc.ReturnType) = 1) and CharInSet(LFunc.ReturnType[1], ['a'..'z', 'A'..'Z']) then
+      Continue;
+
+    LSkip := False;
+    for LI := 0 to High(LFunc.Params) do
+    begin
+      if LFunc.Params[LI].TypeName = '' then
+      begin
+        LSkip := True;
+        Break;
+      end;
+      if (Length(LFunc.Params[LI].TypeName) = 1) and
+         CharInSet(LFunc.Params[LI].TypeName[1], ['a'..'z', 'A'..'Z']) then
+      begin
+        LSkip := True;
+        Break;
+      end;
+    end;
+    if LSkip then
+      Continue;
+
+    EmitFmt('@%s := GetProcAddress(GDllHandle, ''%s'');', [
+      GetDelphiFuncName(LFunc.FuncName), LFunc.FuncName]);
+  end;
+
+  Dec(FIndent);
+  EmitLn('end;');
+  EmitLn();
+end;
+
+procedure TDlmCImporter.GenerateDlmUnbindExportsCustom();
+var
+  LFunc: TDlmCFunctionInfo;
+  LI: Integer;
+  LSkip: Boolean;
+begin
+  if FFunctions.Count = 0 then
+    Exit;
+
+  EmitLn('procedure DlmUnbindExports();');
+  EmitLn('begin');
+  Inc(FIndent);
+
+  for LFunc in FFunctions do
+  begin
+    if FExcludedFunctions.Contains(LFunc.FuncName) then
+      Continue;
+    if FunctionReferencesExcludedType(LFunc) then
+      Continue;
+    if (LFunc.ReturnType = '') or (LFunc.ReturnType = 'return') then
+      Continue;
+    if (Length(LFunc.ReturnType) = 1) and CharInSet(LFunc.ReturnType[1], ['a'..'z', 'A'..'Z']) then
+      Continue;
+
+    LSkip := False;
+    for LI := 0 to High(LFunc.Params) do
+    begin
+      if LFunc.Params[LI].TypeName = '' then
+      begin
+        LSkip := True;
+        Break;
+      end;
+      if (Length(LFunc.Params[LI].TypeName) = 1) and
+         CharInSet(LFunc.Params[LI].TypeName[1], ['a'..'z', 'A'..'Z']) then
+      begin
+        LSkip := True;
+        Break;
+      end;
+    end;
+    if LSkip then
+      Continue;
+
+    EmitFmt('@%s := nil;', [GetDelphiFuncName(LFunc.FuncName)]);
+  end;
+
+  // Does NOT call FreeLibrary -- caller owns the handle
+  EmitLn('GDllHandle := 0;');
+
+  Dec(FIndent);
+  EmitLn('end;');
+  EmitLn();
+end;
+
+procedure TDlmCImporter.GenerateDlmBindExportsVpk();
+var
+  LFunc: TDlmCFunctionInfo;
+  LI: Integer;
+  LSkip: Boolean;
+begin
+  if FFunctions.Count = 0 then
+    Exit;
+
+  EmitLn('procedure DlmBindExports(const AVFS: TVirtuosoVFS; const AFilename: string);');
+  EmitLn('var');
+  Inc(FIndent);
+  EmitLn('LView: TVirtuosoView<Byte>;');
+  Dec(FIndent);
+  EmitLn('begin');
+  Inc(FIndent);
+  EmitLn('LView := AVFS.OpenFile(AFilename);');
+  EmitLn('try');
+  Inc(FIndent);
+  EmitLn('GDllHandle := Dlluminator.LoadLibrary(LView.Memory, LView.Size);');
+  Dec(FIndent);
+  EmitLn('finally');
+  Inc(FIndent);
+  EmitLn('LView.Free();');
+  Dec(FIndent);
+  EmitLn('end;');
+  EmitLn('if GDllHandle = 0 then');
+  Inc(FIndent);
+  EmitLn('Exit;');
+  Dec(FIndent);
+
+  for LFunc in FFunctions do
+  begin
+    if FExcludedFunctions.Contains(LFunc.FuncName) then
+      Continue;
+    if FunctionReferencesExcludedType(LFunc) then
+      Continue;
+    if (LFunc.ReturnType = '') or (LFunc.ReturnType = 'return') then
+      Continue;
+    if (Length(LFunc.ReturnType) = 1) and CharInSet(LFunc.ReturnType[1], ['a'..'z', 'A'..'Z']) then
+      Continue;
+
+    LSkip := False;
+    for LI := 0 to High(LFunc.Params) do
+    begin
+      if LFunc.Params[LI].TypeName = '' then
+      begin
+        LSkip := True;
+        Break;
+      end;
+      if (Length(LFunc.Params[LI].TypeName) = 1) and
+         CharInSet(LFunc.Params[LI].TypeName[1], ['a'..'z', 'A'..'Z']) then
+      begin
+        LSkip := True;
+        Break;
+      end;
+    end;
+    if LSkip then
+      Continue;
+
+    EmitFmt('@%s := GetProcAddress(GDllHandle, ''%s'');', [
+      GetDelphiFuncName(LFunc.FuncName), LFunc.FuncName]);
+  end;
+
+  Dec(FIndent);
+  EmitLn('end;');
+  EmitLn();
+end;
+
+procedure TDlmCImporter.GenerateDlmUnbindExportsVpk();
+var
+  LFunc: TDlmCFunctionInfo;
+  LI: Integer;
+  LSkip: Boolean;
+begin
+  if FFunctions.Count = 0 then
+    Exit;
+
+  EmitLn('procedure DlmUnbindExports();');
+  EmitLn('begin');
+  Inc(FIndent);
+
+  for LFunc in FFunctions do
+  begin
+    if FExcludedFunctions.Contains(LFunc.FuncName) then
+      Continue;
+    if FunctionReferencesExcludedType(LFunc) then
+      Continue;
+    if (LFunc.ReturnType = '') or (LFunc.ReturnType = 'return') then
+      Continue;
+    if (Length(LFunc.ReturnType) = 1) and CharInSet(LFunc.ReturnType[1], ['a'..'z', 'A'..'Z']) then
+      Continue;
+
+    LSkip := False;
+    for LI := 0 to High(LFunc.Params) do
+    begin
+      if LFunc.Params[LI].TypeName = '' then
+      begin
+        LSkip := True;
+        Break;
+      end;
+      if (Length(LFunc.Params[LI].TypeName) = 1) and
+         CharInSet(LFunc.Params[LI].TypeName[1], ['a'..'z', 'A'..'Z']) then
+      begin
+        LSkip := True;
+        Break;
+      end;
+    end;
+    if LSkip then
+      Continue;
+
+    EmitFmt('@%s := nil;', [GetDelphiFuncName(LFunc.FuncName)]);
+  end;
+
+  // Generated unit owns the handle, so free it
+  EmitLn('if GDllHandle <> 0 then');
+  EmitLn('begin');
+  Inc(FIndent);
+  EmitLn('FreeLibrary(GDllHandle);');
+  EmitLn('GDllHandle := 0;');
+  Dec(FIndent);
+  EmitLn('end;');
+
+  Dec(FIndent);
+  EmitLn('end;');
+  EmitLn();
+end;
+
 function TDlmCImporter.GenerateResName(): string;
 var
   LGuid: TGUID;
@@ -3406,30 +3947,36 @@ begin
 
   Status(COLOR_WHITE + '  Output: ' + COLOR_RESET + '%s', [LOutputFile]);
 
-  // Generate .rc resource script
-  LRcFile := TPath.Combine(LOutputDir, FModuleName + '.rc').Replace('\', '/');
-  LResFile := TPath.Combine(LOutputDir, FModuleName + '.res').Replace('\', '/');
-  try
-    TFile.WriteAllText(LRcFile, FResName + ' RCDATA "' + TPath.GetFullPath(FDllPath) + '"', TEncoding.ANSI);
-    Status(COLOR_WHITE + '  RC:     ' + COLOR_RESET + '%s', [LRcFile]);
-  except
-    on E: Exception do
-    begin
-      Status(COLOR_YELLOW + '  Warning: ' + COLOR_RESET + 'Failed to write .rc file: %s', [E.Message]);
-    end;
-  end;
-
-  // Attempt to compile .rc to .res via brcc32
-  if TDlmUtils.RunPE(GetEnvironmentVariable('COMSPEC'),
-    Format('/c brcc32.exe "%s"', [TPath.GetFileName(LRcFile)]), LOutputDir, True, SW_HIDE) = 0 then
+  // Generate .rc/.res resource files only for bmStatic mode
+  if FBindingMode = bmStatic then
   begin
-    if TFile.Exists(LResFile) then
-      Status(COLOR_WHITE + '  RES:    ' + COLOR_RESET + '%s', [LResFile])
+    LRcFile := TPath.Combine(LOutputDir, FModuleName + '.rc').Replace('\', '/');
+    LResFile := TPath.Combine(LOutputDir, FModuleName + '.res').Replace('\', '/');
+    try
+      TFile.WriteAllText(LRcFile, FResName + ' RCDATA "' + TPath.GetFullPath(FDllPath) + '"', TEncoding.ANSI);
+      Status(COLOR_WHITE + '  RC:     ' + COLOR_RESET + '%s', [LRcFile]);
+    except
+      on E: Exception do
+      begin
+        Status(COLOR_YELLOW + '  Warning: ' + COLOR_RESET + 'Failed to write .rc file: %s', [E.Message]);
+      end;
+    end;
+
+    // Attempt to compile .rc to .res via brcc32
+    if TDlmUtils.RunPE(GetEnvironmentVariable('COMSPEC'),
+      Format('/c brcc32.exe -fo"%s" "%s"', [TPath.GetFileName(LResFile), TPath.GetFileName(LRcFile)]), LOutputDir, True, SW_HIDE) = 0 then
+    begin
+      if TFile.Exists(LResFile) then
+      begin
+        Status(COLOR_WHITE + '  RES:    ' + COLOR_RESET + '%s', [LResFile]);
+        TFile.Delete(LRcFile);
+      end
+      else
+        Status(COLOR_YELLOW + '  Warning: ' + COLOR_RESET + 'brcc32 did not produce .res file', []);
+    end
     else
-      Status(COLOR_YELLOW + '  Warning: ' + COLOR_RESET + 'brcc32 did not produce .res file', []);
-  end
-  else
-    Status(COLOR_YELLOW + '  Warning: ' + COLOR_RESET + 'brcc32 failed or not found, .rc not compiled to .res', []);
+      Status(COLOR_YELLOW + '  Warning: ' + COLOR_RESET + 'brcc32 failed or not found, .rc not compiled to .res', []);
+  end;
 
   Status('', []);
   Status(COLOR_GREEN + 'Import complete.' + COLOR_RESET, []);
@@ -3494,6 +4041,10 @@ begin
 
     if LConfig.HasKey('cimporter.output_path') then
       SetOutputPath(LConfig.GetString('cimporter.output_path'));
+
+    // Binding mode
+    if LConfig.HasKey('cimporter.binding_mode') then
+      SetBindingMode(BindingModeFromString(LConfig.GetString('cimporter.binding_mode')));
 
     // Include paths (array of tables with path and optional module)
     LInsertionCount := LConfig.GetTableCount('cimporter.include_paths');
@@ -3810,6 +4361,7 @@ begin
   FHeader := '';
   FLastError := '';
   FCurrentSourceFile := '';
+  FBindingMode := bmStatic;
   FPos := 0;
   FIndent := 0;
 end;
