@@ -22,7 +22,7 @@ uses
   Dlluminator.Utils,
   Dlluminator.CImporter;
 
-procedure ImportRaylib();
+procedure ImportRaylibCustom(const ABindingMode: TDlmBindingMode);
 var
   LImporter: TDlmCImporter;
 begin
@@ -37,9 +37,20 @@ begin
         TDlmUtils.PrintLn(AText);
       end
     );
-    LImporter.SetSavePreprocessed(True);
-    LImporter.SetModuleName('raylib');
+    LImporter.SetSavePreprocessed(False);
+
+    LImporter.SetBindingMode(ABindingMode);
+
+    case ABindingMode of
+      bmStatic        : LImporter.SetModuleName('raylib_static');
+      bmDynamic       : LImporter.SetModuleName('raylib_dynamic');
+      bmDynamicDelayed: LImporter.SetModuleName('raylib_dynamic_delayed');
+      bmDynamicCustom : LImporter.SetModuleName('raylib_dynamc_custom');
+      bmStaticVpk     : LImporter.SetModuleName('raylib_static_vpk');
+    end;
+
     LImporter.SetDllName('raylib');
+
     LImporter.SetOutputPath('..\imports');
     LImporter.SetDllPath('..\libs\raylib\bin\raylib.dll');
     LImporter.AddIncludePath('..\libs\raylib\include');
@@ -79,7 +90,7 @@ begin
     LImporter.AddExcludedType('SDL_PRIX64');
     LImporter.AddFunctionRename('SDL_Log', 'SDL_Log_');
 
-    LImporter.SetSavePreprocessed(True);
+    LImporter.SetSavePreprocessed(False);
     LImporter.SetModuleName('sdl3');
     LImporter.SetDllName('sdl3');
     LImporter.SetOutputPath('..\imports');
@@ -116,7 +127,7 @@ begin
         TDlmUtils.PrintLn(AText);
       end
     );
-    LImporter.SetSavePreprocessed(True);
+    LImporter.SetSavePreprocessed(False);
     LImporter.SetModuleName('sdl3_image');
     LImporter.SetDllName('sdl3_image');
     LImporter.SetOutputPath('..\imports');
@@ -154,7 +165,7 @@ begin
         TDlmUtils.PrintLn(AText);
       end
     );
-    LImporter.SetSavePreprocessed(True);
+    LImporter.SetSavePreprocessed(False);
     LImporter.SetModuleName('sdl3_mixer');
     LImporter.SetDllName('sdl3_mixer');
     LImporter.SetOutputPath('..\imports');
@@ -185,15 +196,26 @@ begin
     LIndex := 0;
 
     case LIndex of
-      01: ImportRaylib();
+      01: ImportRaylibCustom(bmStatic);
       02: ImportSDL3();
       03: ImportSDL3Image();
       04: ImportSDL3Mixer();
+      05:
+        begin
+          ImportRaylibCustom(bmDynamic);
+          ImportRaylibCustom(bmDynamicDelayed);
+          ImportRaylibCustom(bmDynamicCustom);
+          ImportRaylibCustom(bmStaticVpk);
+        end;
     else
-      ImportRaylib();
+      ImportRaylibCustom(bmStatic);
       ImportSDL3();
       ImportSDL3Image();
       ImportSDL3Mixer();
+      ImportRaylibCustom(bmDynamic);
+      ImportRaylibCustom(bmDynamicDelayed);
+      ImportRaylibCustom(bmDynamicCustom);
+      ImportRaylibCustom(bmStaticVpk);
     end;
   except
     on E: Exception do

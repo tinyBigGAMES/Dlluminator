@@ -18,7 +18,7 @@ implementation
 uses
   System.SysUtils,
   Dlluminator.Utils,
-  raylib;
+  raylib_static;
 
 procedure Test01();
 begin
