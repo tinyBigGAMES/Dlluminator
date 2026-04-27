@@ -1,0 +1,1430 @@
+﻿unit raylib_dynamic_delayed;
+
+interface
+
+uses
+  WinApi.Windows;
+
+type
+  PPUTF8Char = ^PUTF8Char;
+  PInt8 = ^Int8;
+  PUInt8 = ^UInt8;
+  PPUInt8 = ^PUInt8;
+  PInt16 = ^Int16;
+  PUInt16 = ^UInt16;
+  PInt32 = ^Int32;
+  PUInt32 = ^UInt32;
+
+const
+  { Constants from #define }
+  RAYLIB_VERSION_MAJOR = 6;
+  RAYLIB_VERSION_MINOR = 0;
+  RAYLIB_VERSION_PATCH = 0;
+  RAYLIB_VERSION = '6.0';
+  PI = 3.14159265358979;
+
+type
+  { Forward declarations (opaque types) }
+  PrAudioBuffer = ^rAudioBuffer;
+  PPrAudioBuffer = ^PrAudioBuffer;
+  rAudioBuffer = record end;
+  PrAudioProcessor = ^rAudioProcessor;
+  PPrAudioProcessor = ^PrAudioProcessor;
+  rAudioProcessor = record end;
+
+type
+  ConfigFlags = Cardinal;
+  PConfigFlags = ^ConfigFlags;
+  TraceLogLevel = Cardinal;
+  PTraceLogLevel = ^TraceLogLevel;
+  KeyboardKey = Cardinal;
+  PKeyboardKey = ^KeyboardKey;
+  MouseButton = Cardinal;
+  PMouseButton = ^MouseButton;
+  MouseCursor = Cardinal;
+  PMouseCursor = ^MouseCursor;
+  GamepadButton = Cardinal;
+  PGamepadButton = ^GamepadButton;
+  GamepadAxis = Cardinal;
+  PGamepadAxis = ^GamepadAxis;
+  MaterialMapIndex = Cardinal;
+  PMaterialMapIndex = ^MaterialMapIndex;
+  ShaderLocationIndex = Cardinal;
+  PShaderLocationIndex = ^ShaderLocationIndex;
+  ShaderUniformDataType = Cardinal;
+  PShaderUniformDataType = ^ShaderUniformDataType;
+  ShaderAttributeDataType = Cardinal;
+  PShaderAttributeDataType = ^ShaderAttributeDataType;
+  PixelFormat = Cardinal;
+  PPixelFormat = ^PixelFormat;
+  TextureFilter = Cardinal;
+  PTextureFilter = ^TextureFilter;
+  TextureWrap = Cardinal;
+  PTextureWrap = ^TextureWrap;
+  CubemapLayout = Cardinal;
+  PCubemapLayout = ^CubemapLayout;
+  FontType = Cardinal;
+  PFontType = ^FontType;
+  BlendMode = Cardinal;
+  PBlendMode = ^BlendMode;
+  Gesture = Cardinal;
+  PGesture = ^Gesture;
+  CameraMode = Cardinal;
+  PCameraMode = ^CameraMode;
+  CameraProjection = Cardinal;
+  PCameraProjection = ^CameraProjection;
+  NPatchLayout = Cardinal;
+  PNPatchLayout = ^NPatchLayout;
+
+const
+  { ConfigFlags }
+  FLAG_VSYNC_HINT = 64;
+  FLAG_FULLSCREEN_MODE = 2;
+  FLAG_WINDOW_RESIZABLE = 4;
+  FLAG_WINDOW_UNDECORATED = 8;
+  FLAG_WINDOW_HIDDEN = 128;
+  FLAG_WINDOW_MINIMIZED = 512;
+  FLAG_WINDOW_MAXIMIZED = 1024;
+  FLAG_WINDOW_UNFOCUSED = 2048;
+  FLAG_WINDOW_TOPMOST = 4096;
+  FLAG_WINDOW_ALWAYS_RUN = 256;
+  FLAG_WINDOW_TRANSPARENT = 16;
+  FLAG_WINDOW_HIGHDPI = 8192;
+  FLAG_WINDOW_MOUSE_PASSTHROUGH = 16384;
+  FLAG_BORDERLESS_WINDOWED_MODE = 32768;
+  FLAG_MSAA_4X_HINT = 32;
+  FLAG_INTERLACED_HINT = 65536;
+  
+  { TraceLogLevel }
+  LOG_ALL = 0;
+  LOG_TRACE = 1;
+  LOG_DEBUG = 2;
+  LOG_INFO = 3;
+  LOG_WARNING = 4;
+  LOG_ERROR = 5;
+  LOG_FATAL = 6;
+  LOG_NONE = 7;
+  
+  { KeyboardKey }
+  KEY_NULL = 0;
+  KEY_APOSTROPHE = 39;
+  KEY_COMMA = 44;
+  KEY_MINUS = 45;
+  KEY_PERIOD = 46;
+  KEY_SLASH = 47;
+  KEY_ZERO = 48;
+  KEY_ONE = 49;
+  KEY_TWO = 50;
+  KEY_THREE = 51;
+  KEY_FOUR = 52;
+  KEY_FIVE = 53;
+  KEY_SIX = 54;
+  KEY_SEVEN = 55;
+  KEY_EIGHT = 56;
+  KEY_NINE = 57;
+  KEY_SEMICOLON = 59;
+  KEY_EQUAL = 61;
+  KEY_A = 65;
+  KEY_B = 66;
+  KEY_C = 67;
+  KEY_D = 68;
+  KEY_E = 69;
+  KEY_F = 70;
+  KEY_G = 71;
+  KEY_H = 72;
+  KEY_I = 73;
+  KEY_J = 74;
+  KEY_K = 75;
+  KEY_L = 76;
+  KEY_M = 77;
+  KEY_N = 78;
+  KEY_O = 79;
+  KEY_P = 80;
+  KEY_Q = 81;
+  KEY_R = 82;
+  KEY_S = 83;
+  KEY_T = 84;
+  KEY_U = 85;
+  KEY_V = 86;
+  KEY_W = 87;
+  KEY_X = 88;
+  KEY_Y = 89;
+  KEY_Z = 90;
+  KEY_LEFT_BRACKET = 91;
+  KEY_BACKSLASH = 92;
+  KEY_RIGHT_BRACKET = 93;
+  KEY_GRAVE = 96;
+  KEY_SPACE = 32;
+  KEY_ESCAPE = 256;
+  KEY_ENTER = 257;
+  KEY_TAB = 258;
+  KEY_BACKSPACE = 259;
+  KEY_INSERT = 260;
+  KEY_DELETE = 261;
+  KEY_RIGHT = 262;
+  KEY_LEFT = 263;
+  KEY_DOWN = 264;
+  KEY_UP = 265;
+  KEY_PAGE_UP = 266;
+  KEY_PAGE_DOWN = 267;
+  KEY_HOME = 268;
+  KEY_END = 269;
+  KEY_CAPS_LOCK = 280;
+  KEY_SCROLL_LOCK = 281;
+  KEY_NUM_LOCK = 282;
+  KEY_PRINT_SCREEN = 283;
+  KEY_PAUSE = 284;
+  KEY_F1 = 290;
+  KEY_F2 = 291;
+  KEY_F3 = 292;
+  KEY_F4 = 293;
+  KEY_F5 = 294;
+  KEY_F6 = 295;
+  KEY_F7 = 296;
+  KEY_F8 = 297;
+  KEY_F9 = 298;
+  KEY_F10 = 299;
+  KEY_F11 = 300;
+  KEY_F12 = 301;
+  KEY_LEFT_SHIFT = 340;
+  KEY_LEFT_CONTROL = 341;
+  KEY_LEFT_ALT = 342;
+  KEY_LEFT_SUPER = 343;
+  KEY_RIGHT_SHIFT = 344;
+  KEY_RIGHT_CONTROL = 345;
+  KEY_RIGHT_ALT = 346;
+  KEY_RIGHT_SUPER = 347;
+  KEY_KB_MENU = 348;
+  KEY_KP_0 = 320;
+  KEY_KP_1 = 321;
+  KEY_KP_2 = 322;
+  KEY_KP_3 = 323;
+  KEY_KP_4 = 324;
+  KEY_KP_5 = 325;
+  KEY_KP_6 = 326;
+  KEY_KP_7 = 327;
+  KEY_KP_8 = 328;
+  KEY_KP_9 = 329;
+  KEY_KP_DECIMAL = 330;
+  KEY_KP_DIVIDE = 331;
+  KEY_KP_MULTIPLY = 332;
+  KEY_KP_SUBTRACT = 333;
+  KEY_KP_ADD = 334;
+  KEY_KP_ENTER = 335;
+  KEY_KP_EQUAL = 336;
+  KEY_BACK = 4;
+  KEY_MENU = 5;
+  KEY_VOLUME_UP = 24;
+  KEY_VOLUME_DOWN = 25;
+  
+  { MouseButton }
+  MOUSE_BUTTON_LEFT = 0;
+  MOUSE_BUTTON_RIGHT = 1;
+  MOUSE_BUTTON_MIDDLE = 2;
+  MOUSE_BUTTON_SIDE = 3;
+  MOUSE_BUTTON_EXTRA = 4;
+  MOUSE_BUTTON_FORWARD = 5;
+  MOUSE_BUTTON_BACK = 6;
+  
+  { MouseCursor }
+  MOUSE_CURSOR_DEFAULT = 0;
+  MOUSE_CURSOR_ARROW = 1;
+  MOUSE_CURSOR_IBEAM = 2;
+  MOUSE_CURSOR_CROSSHAIR = 3;
+  MOUSE_CURSOR_POINTING_HAND = 4;
+  MOUSE_CURSOR_RESIZE_EW = 5;
+  MOUSE_CURSOR_RESIZE_NS = 6;
+  MOUSE_CURSOR_RESIZE_NWSE = 7;
+  MOUSE_CURSOR_RESIZE_NESW = 8;
+  MOUSE_CURSOR_RESIZE_ALL = 9;
+  MOUSE_CURSOR_NOT_ALLOWED = 10;
+  
+  { GamepadButton }
+  GAMEPAD_BUTTON_UNKNOWN = 0;
+  GAMEPAD_BUTTON_LEFT_FACE_UP = 1;
+  GAMEPAD_BUTTON_LEFT_FACE_RIGHT = 2;
+  GAMEPAD_BUTTON_LEFT_FACE_DOWN = 3;
+  GAMEPAD_BUTTON_LEFT_FACE_LEFT = 4;
+  GAMEPAD_BUTTON_RIGHT_FACE_UP = 5;
+  GAMEPAD_BUTTON_RIGHT_FACE_RIGHT = 6;
+  GAMEPAD_BUTTON_RIGHT_FACE_DOWN = 7;
+  GAMEPAD_BUTTON_RIGHT_FACE_LEFT = 8;
+  GAMEPAD_BUTTON_LEFT_TRIGGER_1 = 9;
+  GAMEPAD_BUTTON_LEFT_TRIGGER_2 = 10;
+  GAMEPAD_BUTTON_RIGHT_TRIGGER_1 = 11;
+  GAMEPAD_BUTTON_RIGHT_TRIGGER_2 = 12;
+  GAMEPAD_BUTTON_MIDDLE_LEFT = 13;
+  GAMEPAD_BUTTON_MIDDLE = 14;
+  GAMEPAD_BUTTON_MIDDLE_RIGHT = 15;
+  GAMEPAD_BUTTON_LEFT_THUMB = 16;
+  GAMEPAD_BUTTON_RIGHT_THUMB = 17;
+  
+  { GamepadAxis }
+  GAMEPAD_AXIS_LEFT_X = 0;
+  GAMEPAD_AXIS_LEFT_Y = 1;
+  GAMEPAD_AXIS_RIGHT_X = 2;
+  GAMEPAD_AXIS_RIGHT_Y = 3;
+  GAMEPAD_AXIS_LEFT_TRIGGER = 4;
+  GAMEPAD_AXIS_RIGHT_TRIGGER = 5;
+  
+  { MaterialMapIndex }
+  MATERIAL_MAP_ALBEDO = 0;
+  MATERIAL_MAP_METALNESS = 1;
+  MATERIAL_MAP_NORMAL = 2;
+  MATERIAL_MAP_ROUGHNESS = 3;
+  MATERIAL_MAP_OCCLUSION = 4;
+  MATERIAL_MAP_EMISSION = 5;
+  MATERIAL_MAP_HEIGHT = 6;
+  MATERIAL_MAP_CUBEMAP = 7;
+  MATERIAL_MAP_IRRADIANCE = 8;
+  MATERIAL_MAP_PREFILTER = 9;
+  MATERIAL_MAP_BRDF = 10;
+  
+  { ShaderLocationIndex }
+  SHADER_LOC_VERTEX_POSITION = 0;
+  SHADER_LOC_VERTEX_TEXCOORD01 = 1;
+  SHADER_LOC_VERTEX_TEXCOORD02 = 2;
+  SHADER_LOC_VERTEX_NORMAL = 3;
+  SHADER_LOC_VERTEX_TANGENT = 4;
+  SHADER_LOC_VERTEX_COLOR = 5;
+  SHADER_LOC_MATRIX_MVP = 6;
+  SHADER_LOC_MATRIX_VIEW = 7;
+  SHADER_LOC_MATRIX_PROJECTION = 8;
+  SHADER_LOC_MATRIX_MODEL = 9;
+  SHADER_LOC_MATRIX_NORMAL = 10;
+  SHADER_LOC_VECTOR_VIEW = 11;
+  SHADER_LOC_COLOR_DIFFUSE = 12;
+  SHADER_LOC_COLOR_SPECULAR = 13;
+  SHADER_LOC_COLOR_AMBIENT = 14;
+  SHADER_LOC_MAP_ALBEDO = 15;
+  SHADER_LOC_MAP_METALNESS = 16;
+  SHADER_LOC_MAP_NORMAL = 17;
+  SHADER_LOC_MAP_ROUGHNESS = 18;
+  SHADER_LOC_MAP_OCCLUSION = 19;
+  SHADER_LOC_MAP_EMISSION = 20;
+  SHADER_LOC_MAP_HEIGHT = 21;
+  SHADER_LOC_MAP_CUBEMAP = 22;
+  SHADER_LOC_MAP_IRRADIANCE = 23;
+  SHADER_LOC_MAP_PREFILTER = 24;
+  SHADER_LOC_MAP_BRDF = 25;
+  SHADER_LOC_VERTEX_BONEIDS = 26;
+  SHADER_LOC_VERTEX_BONEWEIGHTS = 27;
+  SHADER_LOC_MATRIX_BONETRANSFORMS = 28;
+  SHADER_LOC_VERTEX_INSTANCETRANSFORM = 29;
+  
+  { ShaderUniformDataType }
+  SHADER_UNIFORM_FLOAT = 0;
+  SHADER_UNIFORM_VEC2 = 1;
+  SHADER_UNIFORM_VEC3 = 2;
+  SHADER_UNIFORM_VEC4 = 3;
+  SHADER_UNIFORM_INT = 4;
+  SHADER_UNIFORM_IVEC2 = 5;
+  SHADER_UNIFORM_IVEC3 = 6;
+  SHADER_UNIFORM_IVEC4 = 7;
+  SHADER_UNIFORM_UINT = 8;
+  SHADER_UNIFORM_UIVEC2 = 9;
+  SHADER_UNIFORM_UIVEC3 = 10;
+  SHADER_UNIFORM_UIVEC4 = 11;
+  SHADER_UNIFORM_SAMPLER2D = 12;
+  
+  { ShaderAttributeDataType }
+  SHADER_ATTRIB_FLOAT = 0;
+  SHADER_ATTRIB_VEC2 = 1;
+  SHADER_ATTRIB_VEC3 = 2;
+  SHADER_ATTRIB_VEC4 = 3;
+  
+  { PixelFormat }
+  PIXELFORMAT_UNCOMPRESSED_GRAYSCALE = 1;
+  PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA = 2;
+  PIXELFORMAT_UNCOMPRESSED_R5G6B5 = 3;
+  PIXELFORMAT_UNCOMPRESSED_R8G8B8 = 4;
+  PIXELFORMAT_UNCOMPRESSED_R5G5B5A1 = 5;
+  PIXELFORMAT_UNCOMPRESSED_R4G4B4A4 = 6;
+  PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 = 7;
+  PIXELFORMAT_UNCOMPRESSED_R32 = 8;
+  PIXELFORMAT_UNCOMPRESSED_R32G32B32 = 9;
+  PIXELFORMAT_UNCOMPRESSED_R32G32B32A32 = 10;
+  PIXELFORMAT_UNCOMPRESSED_R16 = 11;
+  PIXELFORMAT_UNCOMPRESSED_R16G16B16 = 12;
+  PIXELFORMAT_UNCOMPRESSED_R16G16B16A16 = 13;
+  PIXELFORMAT_COMPRESSED_DXT1_RGB = 14;
+  PIXELFORMAT_COMPRESSED_DXT1_RGBA = 15;
+  PIXELFORMAT_COMPRESSED_DXT3_RGBA = 16;
+  PIXELFORMAT_COMPRESSED_DXT5_RGBA = 17;
+  PIXELFORMAT_COMPRESSED_ETC1_RGB = 18;
+  PIXELFORMAT_COMPRESSED_ETC2_RGB = 19;
+  PIXELFORMAT_COMPRESSED_ETC2_EAC_RGBA = 20;
+  PIXELFORMAT_COMPRESSED_PVRT_RGB = 21;
+  PIXELFORMAT_COMPRESSED_PVRT_RGBA = 22;
+  PIXELFORMAT_COMPRESSED_ASTC_4x4_RGBA = 23;
+  PIXELFORMAT_COMPRESSED_ASTC_8x8_RGBA = 24;
+  
+  { TextureFilter }
+  TEXTURE_FILTER_POINT = 0;
+  TEXTURE_FILTER_BILINEAR = 1;
+  TEXTURE_FILTER_TRILINEAR = 2;
+  TEXTURE_FILTER_ANISOTROPIC_4X = 3;
+  TEXTURE_FILTER_ANISOTROPIC_8X = 4;
+  TEXTURE_FILTER_ANISOTROPIC_16X = 5;
+  
+  { TextureWrap }
+  TEXTURE_WRAP_REPEAT = 0;
+  TEXTURE_WRAP_CLAMP = 1;
+  TEXTURE_WRAP_MIRROR_REPEAT = 2;
+  TEXTURE_WRAP_MIRROR_CLAMP = 3;
+  
+  { CubemapLayout }
+  CUBEMAP_LAYOUT_AUTO_DETECT = 0;
+  CUBEMAP_LAYOUT_LINE_VERTICAL = 1;
+  CUBEMAP_LAYOUT_LINE_HORIZONTAL = 2;
+  CUBEMAP_LAYOUT_CROSS_THREE_BY_FOUR = 3;
+  CUBEMAP_LAYOUT_CROSS_FOUR_BY_THREE = 4;
+  
+  { FontType }
+  FONT_DEFAULT = 0;
+  FONT_BITMAP = 1;
+  FONT_SDF = 2;
+  
+  { BlendMode }
+  BLEND_ALPHA = 0;
+  BLEND_ADDITIVE = 1;
+  BLEND_MULTIPLIED = 2;
+  BLEND_ADD_COLORS = 3;
+  BLEND_SUBTRACT_COLORS = 4;
+  BLEND_ALPHA_PREMULTIPLY = 5;
+  BLEND_CUSTOM = 6;
+  BLEND_CUSTOM_SEPARATE = 7;
+  
+  { Gesture }
+  GESTURE_NONE = 0;
+  GESTURE_TAP = 1;
+  GESTURE_DOUBLETAP = 2;
+  GESTURE_HOLD = 4;
+  GESTURE_DRAG = 8;
+  GESTURE_SWIPE_RIGHT = 16;
+  GESTURE_SWIPE_LEFT = 32;
+  GESTURE_SWIPE_UP = 64;
+  GESTURE_SWIPE_DOWN = 128;
+  GESTURE_PINCH_IN = 256;
+  GESTURE_PINCH_OUT = 512;
+  
+  { CameraMode }
+  CAMERA_CUSTOM = 0;
+  CAMERA_FREE = 1;
+  CAMERA_ORBITAL = 2;
+  CAMERA_FIRST_PERSON = 3;
+  CAMERA_THIRD_PERSON = 4;
+  
+  { CameraProjection }
+  CAMERA_PERSPECTIVE = 0;
+  CAMERA_ORTHOGRAPHIC = 1;
+  
+  { NPatchLayout }
+  NPATCH_NINE_PATCH = 0;
+  NPATCH_THREE_PATCH_VERTICAL = 1;
+  NPATCH_THREE_PATCH_HORIZONTAL = 2;
+  
+type
+  PVector2 = ^Vector2;
+  PPVector2 = ^PVector2;
+  Vector2 = record
+    x: Single;
+    y: Single;
+  end;
+  
+  PVector3 = ^Vector3;
+  PPVector3 = ^PVector3;
+  Vector3 = record
+    x: Single;
+    y: Single;
+    z: Single;
+  end;
+  
+  PVector4 = ^Vector4;
+  PPVector4 = ^PVector4;
+  Vector4 = record
+    x: Single;
+    y: Single;
+    z: Single;
+    w: Single;
+  end;
+  
+  PMatrix = ^Matrix;
+  PPMatrix = ^PMatrix;
+  Matrix = record
+    m0: Single;
+    m4: Single;
+    m8: Single;
+    m12: Single;
+    m1: Single;
+    m5: Single;
+    m9: Single;
+    m13: Single;
+    m2: Single;
+    m6: Single;
+    m10: Single;
+    m14: Single;
+    m3: Single;
+    m7: Single;
+    m11: Single;
+    m15: Single;
+  end;
+  
+  PColor = ^Color;
+  PPColor = ^PColor;
+  Color = record
+    r: Byte;
+    g: Byte;
+    b: Byte;
+    a: Byte;
+  end;
+  
+  PRectangle = ^Rectangle;
+  PPRectangle = ^PRectangle;
+  Rectangle = record
+    x: Single;
+    y: Single;
+    width: Single;
+    height: Single;
+  end;
+  
+  PImage = ^Image;
+  PPImage = ^PImage;
+  Image = record
+    data: Pointer;
+    width: Integer;
+    height: Integer;
+    mipmaps: Integer;
+    format: Integer;
+  end;
+  
+  PTexture = ^Texture;
+  PPTexture = ^PTexture;
+  Texture = record
+    id: Cardinal;
+    width: Integer;
+    height: Integer;
+    mipmaps: Integer;
+    format: Integer;
+  end;
+  
+  PRenderTexture = ^RenderTexture;
+  PPRenderTexture = ^PRenderTexture;
+  RenderTexture = record
+    id: Cardinal;
+    texture: Texture;
+    depth: Texture;
+  end;
+  
+  PNPatchInfo = ^NPatchInfo;
+  PPNPatchInfo = ^PNPatchInfo;
+  NPatchInfo = record
+    source: Rectangle;
+    left: Integer;
+    top: Integer;
+    right: Integer;
+    bottom: Integer;
+    layout: Integer;
+  end;
+  
+  PGlyphInfo = ^GlyphInfo;
+  PPGlyphInfo = ^PGlyphInfo;
+  GlyphInfo = record
+    value: Integer;
+    offsetX: Integer;
+    offsetY: Integer;
+    advanceX: Integer;
+    image: Image;
+  end;
+  
+  PFont = ^Font;
+  PPFont = ^PFont;
+  Font = record
+    baseSize: Integer;
+    glyphCount: Integer;
+    glyphPadding: Integer;
+    texture: Texture;
+    recs: PRectangle;
+    glyphs: PGlyphInfo;
+  end;
+  
+  PCamera3D = ^Camera3D;
+  PPCamera3D = ^PCamera3D;
+  Camera3D = record
+    position: Vector3;
+    target: Vector3;
+    up: Vector3;
+    fovy: Single;
+    projection: Integer;
+  end;
+  
+  PCamera2D = ^Camera2D;
+  PPCamera2D = ^PCamera2D;
+  Camera2D = record
+    offset: Vector2;
+    target: Vector2;
+    rotation: Single;
+    zoom: Single;
+  end;
+  
+  PMesh = ^Mesh;
+  PPMesh = ^PMesh;
+  Mesh = record
+    vertexCount: Integer;
+    triangleCount: Integer;
+    vertices: PSingle;
+    texcoords: PSingle;
+    texcoords2: PSingle;
+    normals: PSingle;
+    tangents: PSingle;
+    colors: PByte;
+    indices: PWord;
+    boneCount: Integer;
+    boneIndices: PByte;
+    boneWeights: PSingle;
+    animVertices: PSingle;
+    animNormals: PSingle;
+    vaoId: Cardinal;
+    vboId: PCardinal;
+  end;
+  
+  PShader = ^Shader;
+  PPShader = ^PShader;
+  Shader = record
+    id: Cardinal;
+    locs: PInteger;
+  end;
+  
+  PMaterialMap = ^MaterialMap;
+  PPMaterialMap = ^PMaterialMap;
+  MaterialMap = record
+    texture: Texture;
+    color: Color;
+    value: Single;
+  end;
+  
+  PMaterial = ^Material;
+  PPMaterial = ^PMaterial;
+  Material = record
+    shader: Shader;
+    maps: PMaterialMap;
+    params: array[0..3] of Single;
+  end;
+  
+  PTransform = ^Transform;
+  PPTransform = ^PTransform;
+  Transform = record
+    translation: Vector3;
+    rotation: Vector4;
+    scale: Vector3;
+  end;
+  
+  PBoneInfo = ^BoneInfo;
+  PPBoneInfo = ^PBoneInfo;
+  BoneInfo = record
+    name: array[0..31] of UTF8Char;
+    parent: Integer;
+  end;
+  
+  PModelSkeleton = ^ModelSkeleton;
+  PPModelSkeleton = ^PModelSkeleton;
+  ModelSkeleton = record
+    boneCount: Integer;
+    bones: PBoneInfo;
+    bindPose: Transform;
+  end;
+  
+  PModel = ^Model;
+  PPModel = ^PModel;
+  Model = record
+    transform: Matrix;
+    meshCount: Integer;
+    materialCount: Integer;
+    meshes: PMesh;
+    materials: PMaterial;
+    meshMaterial: PInteger;
+    skeleton: ModelSkeleton;
+    currentPose: Transform;
+    boneMatrices: PMatrix;
+  end;
+  
+  PModelAnimation = ^ModelAnimation;
+  PPModelAnimation = ^PModelAnimation;
+  ModelAnimation = record
+    name: array[0..31] of UTF8Char;
+    boneCount: Integer;
+    keyframeCount: Integer;
+    keyframePoses: PTransform;
+  end;
+  
+  PRay = ^Ray;
+  PPRay = ^PRay;
+  Ray = record
+    position: Vector3;
+    direction: Vector3;
+  end;
+  
+  PRayCollision = ^RayCollision;
+  PPRayCollision = ^PRayCollision;
+  RayCollision = record
+    hit: Boolean;
+    distance: Single;
+    point: Vector3;
+    normal: Vector3;
+  end;
+  
+  PBoundingBox = ^BoundingBox;
+  PPBoundingBox = ^PBoundingBox;
+  BoundingBox = record
+    min: Vector3;
+    max: Vector3;
+  end;
+  
+  PWave = ^Wave;
+  PPWave = ^PWave;
+  Wave = record
+    frameCount: Cardinal;
+    sampleRate: Cardinal;
+    sampleSize: Cardinal;
+    channels: Cardinal;
+    data: Pointer;
+  end;
+  
+  PAudioStream = ^AudioStream;
+  PPAudioStream = ^PAudioStream;
+  AudioStream = record
+    buffer: PrAudioBuffer;
+    processor: PrAudioProcessor;
+    sampleRate: Cardinal;
+    sampleSize: Cardinal;
+    channels: Cardinal;
+  end;
+  
+  PSound = ^Sound;
+  PPSound = ^PSound;
+  Sound = record
+    stream: AudioStream;
+    frameCount: Cardinal;
+  end;
+  
+  PMusic = ^Music;
+  PPMusic = ^PMusic;
+  Music = record
+    stream: AudioStream;
+    frameCount: Cardinal;
+    looping: Boolean;
+    ctxType: Integer;
+    ctxData: Pointer;
+  end;
+  
+  PVrDeviceInfo = ^VrDeviceInfo;
+  PPVrDeviceInfo = ^PVrDeviceInfo;
+  VrDeviceInfo = record
+    hResolution: Integer;
+    vResolution: Integer;
+    hScreenSize: Single;
+    vScreenSize: Single;
+    eyeToScreenDistance: Single;
+    lensSeparationDistance: Single;
+    interpupillaryDistance: Single;
+    lensDistortionValues: array[0..3] of Single;
+    chromaAbCorrection: array[0..3] of Single;
+  end;
+  
+  PVrStereoConfig = ^VrStereoConfig;
+  PPVrStereoConfig = ^PVrStereoConfig;
+  VrStereoConfig = record
+    projection: array[0..1] of Matrix;
+    viewOffset: array[0..1] of Matrix;
+    leftLensCenter: array[0..1] of Single;
+    rightLensCenter: array[0..1] of Single;
+    leftScreenCenter: array[0..1] of Single;
+    rightScreenCenter: array[0..1] of Single;
+    scale: array[0..1] of Single;
+    scaleIn: array[0..1] of Single;
+  end;
+  
+  PFilePathList = ^FilePathList;
+  PPFilePathList = ^PFilePathList;
+  FilePathList = record
+    count: Cardinal;
+    paths: PPUTF8Char;
+  end;
+  
+  PAutomationEvent = ^AutomationEvent;
+  PPAutomationEvent = ^PAutomationEvent;
+  AutomationEvent = record
+    frame: Cardinal;
+    type_: Cardinal;
+    params: array[0..3] of Integer;
+  end;
+  
+  PAutomationEventList = ^AutomationEventList;
+  PPAutomationEventList = ^PAutomationEventList;
+  AutomationEventList = record
+    capacity: Cardinal;
+    count: Cardinal;
+    events: PAutomationEvent;
+  end;
+  
+  Quaternion = Vector4;
+  PQuaternion = ^Quaternion;
+  Texture2D = Texture;
+  PTexture2D = ^Texture2D;
+  TextureCubemap = Texture;
+  PTextureCubemap = ^TextureCubemap;
+  RenderTexture2D = RenderTexture;
+  PRenderTexture2D = ^RenderTexture2D;
+  Camera = Camera3D;
+  PCamera = ^Camera;
+  ModelAnimPose = PTransform;
+  PModelAnimPose = ^ModelAnimPose;
+  
+  LoadFileDataCallback = function(const AfileName: PUTF8Char; const AdataSize: PInteger): PByte;
+  PLoadFileDataCallback = ^LoadFileDataCallback;
+  SaveFileDataCallback = function(const AfileName: PUTF8Char; const Adata: Pointer; const AdataSize: Integer): Boolean;
+  PSaveFileDataCallback = ^SaveFileDataCallback;
+  LoadFileTextCallback = function(const AfileName: PUTF8Char): PUTF8Char;
+  PLoadFileTextCallback = ^LoadFileTextCallback;
+  SaveFileTextCallback = function(const AfileName: PUTF8Char; const Atext: PUTF8Char): Boolean;
+  PSaveFileTextCallback = ^SaveFileTextCallback;
+  AudioCallback = procedure(const AbufferData: Pointer; const Aframes: Cardinal);
+  PAudioCallback = ^AudioCallback;
+  
+
+const
+  { Typed constants from compound literals }
+  LIGHTGRAY: Color = (r: 200; g: 200; b: 200; a: 255);
+  GRAY: Color = (r: 130; g: 130; b: 130; a: 255);
+  DARKGRAY: Color = (r: 80; g: 80; b: 80; a: 255);
+  YELLOW: Color = (r: 253; g: 249; b: 0; a: 255);
+  GOLD: Color = (r: 255; g: 203; b: 0; a: 255);
+  ORANGE: Color = (r: 255; g: 161; b: 0; a: 255);
+  PINK: Color = (r: 255; g: 109; b: 194; a: 255);
+  RED: Color = (r: 230; g: 41; b: 55; a: 255);
+  MAROON: Color = (r: 190; g: 33; b: 55; a: 255);
+  GREEN: Color = (r: 0; g: 228; b: 48; a: 255);
+  LIME: Color = (r: 0; g: 158; b: 47; a: 255);
+  DARKGREEN: Color = (r: 0; g: 117; b: 44; a: 255);
+  SKYBLUE: Color = (r: 102; g: 191; b: 255; a: 255);
+  BLUE: Color = (r: 0; g: 121; b: 241; a: 255);
+  DARKBLUE: Color = (r: 0; g: 82; b: 172; a: 255);
+  PURPLE: Color = (r: 200; g: 122; b: 255; a: 255);
+  VIOLET: Color = (r: 135; g: 60; b: 190; a: 255);
+  DARKPURPLE: Color = (r: 112; g: 31; b: 126; a: 255);
+  BEIGE: Color = (r: 211; g: 176; b: 131; a: 255);
+  BROWN: Color = (r: 127; g: 106; b: 79; a: 255);
+  DARKBROWN: Color = (r: 76; g: 63; b: 47; a: 255);
+  WHITE: Color = (r: 255; g: 255; b: 255; a: 255);
+  BLACK: Color = (r: 0; g: 0; b: 0; a: 255);
+  BLANK: Color = (r: 0; g: 0; b: 0; a: 0);
+  MAGENTA: Color = (r: 255; g: 0; b: 255; a: 255);
+  RAYWHITE: Color = (r: 245; g: 245; b: 245; a: 255);
+
+{$WARN SYMBOL_PLATFORM OFF}
+const
+  CDllName = 'raylib.dll';
+
+procedure InitWindow(const Awidth: Integer; const Aheight: Integer; const Atitle: PUTF8Char); external CDllName delayed;
+procedure CloseWindow(); external CDllName delayed;
+function  WindowShouldClose(): Boolean; external CDllName delayed;
+function  IsWindowReady(): Boolean; external CDllName delayed;
+function  IsWindowFullscreen(): Boolean; external CDllName delayed;
+function  IsWindowHidden(): Boolean; external CDllName delayed;
+function  IsWindowMinimized(): Boolean; external CDllName delayed;
+function  IsWindowMaximized(): Boolean; external CDllName delayed;
+function  IsWindowFocused(): Boolean; external CDllName delayed;
+function  IsWindowResized(): Boolean; external CDllName delayed;
+function  IsWindowState(const Aflag: Cardinal): Boolean; external CDllName delayed;
+procedure SetWindowState(const Aflags: Cardinal); external CDllName delayed;
+procedure ClearWindowState(const Aflags: Cardinal); external CDllName delayed;
+procedure ToggleFullscreen(); external CDllName delayed;
+procedure ToggleBorderlessWindowed(); external CDllName delayed;
+procedure MaximizeWindow(); external CDllName delayed;
+procedure MinimizeWindow(); external CDllName delayed;
+procedure RestoreWindow(); external CDllName delayed;
+procedure SetWindowIcon(const Aimage: Image); external CDllName delayed;
+procedure SetWindowIcons(const Aimages: PImage; const Acount: Integer); external CDllName delayed;
+procedure SetWindowTitle(const Atitle: PUTF8Char); external CDllName delayed;
+procedure SetWindowPosition(const Ax: Integer; const Ay: Integer); external CDllName delayed;
+procedure SetWindowMonitor(const Amonitor: Integer); external CDllName delayed;
+procedure SetWindowMinSize(const Awidth: Integer; const Aheight: Integer); external CDllName delayed;
+procedure SetWindowMaxSize(const Awidth: Integer; const Aheight: Integer); external CDllName delayed;
+procedure SetWindowSize(const Awidth: Integer; const Aheight: Integer); external CDllName delayed;
+procedure SetWindowOpacity(const Aopacity: Single); external CDllName delayed;
+procedure SetWindowFocused(); external CDllName delayed;
+function  GetWindowHandle(): Pointer; external CDllName delayed;
+function  GetScreenWidth(): Integer; external CDllName delayed;
+function  GetScreenHeight(): Integer; external CDllName delayed;
+function  GetRenderWidth(): Integer; external CDllName delayed;
+function  GetRenderHeight(): Integer; external CDllName delayed;
+function  GetMonitorCount(): Integer; external CDllName delayed;
+function  GetCurrentMonitor(): Integer; external CDllName delayed;
+function  GetMonitorPosition(const Amonitor: Integer): Vector2; external CDllName delayed;
+function  GetMonitorWidth(const Amonitor: Integer): Integer; external CDllName delayed;
+function  GetMonitorHeight(const Amonitor: Integer): Integer; external CDllName delayed;
+function  GetMonitorPhysicalWidth(const Amonitor: Integer): Integer; external CDllName delayed;
+function  GetMonitorPhysicalHeight(const Amonitor: Integer): Integer; external CDllName delayed;
+function  GetMonitorRefreshRate(const Amonitor: Integer): Integer; external CDllName delayed;
+function  GetWindowPosition(): Vector2; external CDllName delayed;
+function  GetWindowScaleDPI(): Vector2; external CDllName delayed;
+function  GetMonitorName(const Amonitor: Integer): PUTF8Char; external CDllName delayed;
+procedure SetClipboardText(const Atext: PUTF8Char); external CDllName delayed;
+function  GetClipboardText(): PUTF8Char; external CDllName delayed;
+function  GetClipboardImage(): Image; external CDllName delayed;
+procedure EnableEventWaiting(); external CDllName delayed;
+procedure DisableEventWaiting(); external CDllName delayed;
+procedure ShowCursor(); external CDllName delayed;
+procedure HideCursor(); external CDllName delayed;
+function  IsCursorHidden(): Boolean; external CDllName delayed;
+procedure EnableCursor(); external CDllName delayed;
+procedure DisableCursor(); external CDllName delayed;
+function  IsCursorOnScreen(): Boolean; external CDllName delayed;
+procedure ClearBackground(const Acolor: Color); external CDllName delayed;
+procedure BeginDrawing(); external CDllName delayed;
+procedure EndDrawing(); external CDllName delayed;
+procedure BeginMode2D(const Acamera: Camera2D); external CDllName delayed;
+procedure EndMode2D(); external CDllName delayed;
+procedure BeginMode3D(const Acamera: Camera3D); external CDllName delayed;
+procedure EndMode3D(); external CDllName delayed;
+procedure BeginTextureMode(const Atarget: RenderTexture2D); external CDllName delayed;
+procedure EndTextureMode(); external CDllName delayed;
+procedure BeginShaderMode(const Ashader: Shader); external CDllName delayed;
+procedure EndShaderMode(); external CDllName delayed;
+procedure BeginBlendMode(const Amode: Integer); external CDllName delayed;
+procedure EndBlendMode(); external CDllName delayed;
+procedure BeginScissorMode(const Ax: Integer; const Ay: Integer; const Awidth: Integer; const Aheight: Integer); external CDllName delayed;
+procedure EndScissorMode(); external CDllName delayed;
+procedure BeginVrStereoMode(const Aconfig: VrStereoConfig); external CDllName delayed;
+procedure EndVrStereoMode(); external CDllName delayed;
+function  LoadVrStereoConfig(const Adevice: VrDeviceInfo): VrStereoConfig; external CDllName delayed;
+procedure UnloadVrStereoConfig(const Aconfig: VrStereoConfig); external CDllName delayed;
+function  LoadShader(const AvsFileName: PUTF8Char; const AfsFileName: PUTF8Char): Shader; external CDllName delayed;
+function  LoadShaderFromMemory(const AvsCode: PUTF8Char; const AfsCode: PUTF8Char): Shader; external CDllName delayed;
+function  IsShaderValid(const Ashader: Shader): Boolean; external CDllName delayed;
+function  GetShaderLocation(const Ashader: Shader; const AuniformName: PUTF8Char): Integer; external CDllName delayed;
+function  GetShaderLocationAttrib(const Ashader: Shader; const AattribName: PUTF8Char): Integer; external CDllName delayed;
+procedure SetShaderValue(const Ashader: Shader; const AlocIndex: Integer; const Avalue: Pointer; const AuniformType: Integer); external CDllName delayed;
+procedure SetShaderValueV(const Ashader: Shader; const AlocIndex: Integer; const Avalue: Pointer; const AuniformType: Integer; const Acount: Integer); external CDllName delayed;
+procedure SetShaderValueMatrix(const Ashader: Shader; const AlocIndex: Integer; const Amat: Matrix); external CDllName delayed;
+procedure SetShaderValueTexture(const Ashader: Shader; const AlocIndex: Integer; const Atexture: Texture2D); external CDllName delayed;
+procedure UnloadShader(const Ashader: Shader); external CDllName delayed;
+function  GetScreenToWorldRay(const Aposition: Vector2; const Acamera: Camera): Ray; external CDllName delayed;
+function  GetScreenToWorldRayEx(const Aposition: Vector2; const Acamera: Camera; const Awidth: Integer; const Aheight: Integer): Ray; external CDllName delayed;
+function  GetWorldToScreen(const Aposition: Vector3; const Acamera: Camera): Vector2; external CDllName delayed;
+function  GetWorldToScreenEx(const Aposition: Vector3; const Acamera: Camera; const Awidth: Integer; const Aheight: Integer): Vector2; external CDllName delayed;
+function  GetWorldToScreen2D(const Aposition: Vector2; const Acamera: Camera2D): Vector2; external CDllName delayed;
+function  GetScreenToWorld2D(const Aposition: Vector2; const Acamera: Camera2D): Vector2; external CDllName delayed;
+function  GetCameraMatrix(const Acamera: Camera): Matrix; external CDllName delayed;
+function  GetCameraMatrix2D(const Acamera: Camera2D): Matrix; external CDllName delayed;
+procedure SetTargetFPS(const Afps: Integer); external CDllName delayed;
+function  GetFrameTime(): Single; external CDllName delayed;
+function  GetTime(): Double; external CDllName delayed;
+function  GetFPS(): Integer; external CDllName delayed;
+procedure SwapScreenBuffer(); external CDllName delayed;
+procedure PollInputEvents(); external CDllName delayed;
+procedure WaitTime(const Aseconds: Double); external CDllName delayed;
+procedure SetRandomSeed(const Aseed: Cardinal); external CDllName delayed;
+function  GetRandomValue(const Amin: Integer; const Amax: Integer): Integer; external CDllName delayed;
+function  LoadRandomSequence(const Acount: Cardinal; const Amin: Integer; const Amax: Integer): PInteger; external CDllName delayed;
+procedure UnloadRandomSequence(const Asequence: PInteger); external CDllName delayed;
+procedure TakeScreenshot(const AfileName: PUTF8Char); external CDllName delayed;
+procedure SetConfigFlags(const Aflags: Cardinal); external CDllName delayed;
+procedure OpenURL(const Aurl: PUTF8Char); external CDllName delayed;
+procedure SetTraceLogLevel(const AlogLevel: Integer); external CDllName delayed;
+procedure TraceLog(const AlogLevel: Integer; const Atext: PUTF8Char); external CDllName delayed;
+function  MemAlloc(const Asize: Cardinal): Pointer; external CDllName delayed;
+function  MemRealloc(const Aptr: Pointer; const Asize: Cardinal): Pointer; external CDllName delayed;
+procedure MemFree(const Aptr: Pointer); external CDllName delayed;
+function  LoadFileData(const AfileName: PUTF8Char; const AdataSize: PInteger): PByte; external CDllName delayed;
+procedure UnloadFileData(const Adata: PByte); external CDllName delayed;
+function  SaveFileData(const AfileName: PUTF8Char; const Adata: Pointer; const AdataSize: Integer): Boolean; external CDllName delayed;
+function  ExportDataAsCode(const Adata: PByte; const AdataSize: Integer; const AfileName: PUTF8Char): Boolean; external CDllName delayed;
+function  LoadFileText(const AfileName: PUTF8Char): PUTF8Char; external CDllName delayed;
+procedure UnloadFileText(const Atext: PUTF8Char); external CDllName delayed;
+function  SaveFileText(const AfileName: PUTF8Char; const Atext: PUTF8Char): Boolean; external CDllName delayed;
+procedure SetLoadFileDataCallback(const Acallback: LoadFileDataCallback); external CDllName delayed;
+procedure SetSaveFileDataCallback(const Acallback: SaveFileDataCallback); external CDllName delayed;
+procedure SetLoadFileTextCallback(const Acallback: LoadFileTextCallback); external CDllName delayed;
+procedure SetSaveFileTextCallback(const Acallback: SaveFileTextCallback); external CDllName delayed;
+function  FileRename(const AfileName: PUTF8Char; const AfileRename: PUTF8Char): Integer; external CDllName delayed;
+function  FileRemove(const AfileName: PUTF8Char): Integer; external CDllName delayed;
+function  FileCopy(const AsrcPath: PUTF8Char; const AdstPath: PUTF8Char): Integer; external CDllName delayed;
+function  FileMove(const AsrcPath: PUTF8Char; const AdstPath: PUTF8Char): Integer; external CDllName delayed;
+function  FileTextReplace(const AfileName: PUTF8Char; const Asearch: PUTF8Char; const Areplacement: PUTF8Char): Integer; external CDllName delayed;
+function  FileTextFindIndex(const AfileName: PUTF8Char; const Asearch: PUTF8Char): Integer; external CDllName delayed;
+function  FileExists(const AfileName: PUTF8Char): Boolean; external CDllName delayed;
+function  DirectoryExists(const AdirPath: PUTF8Char): Boolean; external CDllName delayed;
+function  IsFileExtension(const AfileName: PUTF8Char; const Aext: PUTF8Char): Boolean; external CDllName delayed;
+function  GetFileLength(const AfileName: PUTF8Char): Integer; external CDllName delayed;
+function  GetFileModTime(const AfileName: PUTF8Char): Integer; external CDllName delayed;
+function  GetFileExtension(const AfileName: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  GetFileName(const AfilePath: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  GetFileNameWithoutExt(const AfilePath: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  GetDirectoryPath(const AfilePath: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  GetPrevDirectoryPath(const AdirPath: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  GetWorkingDirectory(): PUTF8Char; external CDllName delayed;
+function  GetApplicationDirectory(): PUTF8Char; external CDllName delayed;
+function  MakeDirectory(const AdirPath: PUTF8Char): Integer; external CDllName delayed;
+function  ChangeDirectory(const AdirPath: PUTF8Char): Boolean; external CDllName delayed;
+function  IsPathFile(const Apath: PUTF8Char): Boolean; external CDllName delayed;
+function  IsFileNameValid(const AfileName: PUTF8Char): Boolean; external CDllName delayed;
+function  LoadDirectoryFiles(const AdirPath: PUTF8Char): FilePathList; external CDllName delayed;
+function  LoadDirectoryFilesEx(const AbasePath: PUTF8Char; const Afilter: PUTF8Char; const AscanSubdirs: Boolean): FilePathList; external CDllName delayed;
+procedure UnloadDirectoryFiles(const Afiles: FilePathList); external CDllName delayed;
+function  IsFileDropped(): Boolean; external CDllName delayed;
+function  LoadDroppedFiles(): FilePathList; external CDllName delayed;
+procedure UnloadDroppedFiles(const Afiles: FilePathList); external CDllName delayed;
+function  GetDirectoryFileCount(const AdirPath: PUTF8Char): Cardinal; external CDllName delayed;
+function  GetDirectoryFileCountEx(const AbasePath: PUTF8Char; const Afilter: PUTF8Char; const AscanSubdirs: Boolean): Cardinal; external CDllName delayed;
+function  CompressData(const Adata: PByte; const AdataSize: Integer; const AcompDataSize: PInteger): PByte; external CDllName delayed;
+function  DecompressData(const AcompData: PByte; const AcompDataSize: Integer; const AdataSize: PInteger): PByte; external CDllName delayed;
+function  EncodeDataBase64(const Adata: PByte; const AdataSize: Integer; const AoutputSize: PInteger): PUTF8Char; external CDllName delayed;
+function  DecodeDataBase64(const Atext: PUTF8Char; const AoutputSize: PInteger): PByte; external CDllName delayed;
+function  ComputeCRC32(const Adata: PByte; const AdataSize: Integer): Cardinal; external CDllName delayed;
+function  ComputeMD5(const Adata: PByte; const AdataSize: Integer): PCardinal; external CDllName delayed;
+function  ComputeSHA1(const Adata: PByte; const AdataSize: Integer): PCardinal; external CDllName delayed;
+function  ComputeSHA256(const Adata: PByte; const AdataSize: Integer): PCardinal; external CDllName delayed;
+function  LoadAutomationEventList(const AfileName: PUTF8Char): AutomationEventList; external CDllName delayed;
+procedure UnloadAutomationEventList(const Alist: AutomationEventList); external CDllName delayed;
+function  ExportAutomationEventList(const Alist: AutomationEventList; const AfileName: PUTF8Char): Boolean; external CDllName delayed;
+procedure SetAutomationEventList(const Alist: PAutomationEventList); external CDllName delayed;
+procedure SetAutomationEventBaseFrame(const Aframe: Integer); external CDllName delayed;
+procedure StartAutomationEventRecording(); external CDllName delayed;
+procedure StopAutomationEventRecording(); external CDllName delayed;
+procedure PlayAutomationEvent(const Aevent: AutomationEvent); external CDllName delayed;
+function  IsKeyPressed(const Akey: Integer): Boolean; external CDllName delayed;
+function  IsKeyPressedRepeat(const Akey: Integer): Boolean; external CDllName delayed;
+function  IsKeyDown(const Akey: Integer): Boolean; external CDllName delayed;
+function  IsKeyReleased(const Akey: Integer): Boolean; external CDllName delayed;
+function  IsKeyUp(const Akey: Integer): Boolean; external CDllName delayed;
+function  GetKeyPressed(): Integer; external CDllName delayed;
+function  GetCharPressed(): Integer; external CDllName delayed;
+function  GetKeyName(const Akey: Integer): PUTF8Char; external CDllName delayed;
+procedure SetExitKey(const Akey: Integer); external CDllName delayed;
+function  IsGamepadAvailable(const Agamepad: Integer): Boolean; external CDllName delayed;
+function  GetGamepadName(const Agamepad: Integer): PUTF8Char; external CDllName delayed;
+function  IsGamepadButtonPressed(const Agamepad: Integer; const Abutton: Integer): Boolean; external CDllName delayed;
+function  IsGamepadButtonDown(const Agamepad: Integer; const Abutton: Integer): Boolean; external CDllName delayed;
+function  IsGamepadButtonReleased(const Agamepad: Integer; const Abutton: Integer): Boolean; external CDllName delayed;
+function  IsGamepadButtonUp(const Agamepad: Integer; const Abutton: Integer): Boolean; external CDllName delayed;
+function  GetGamepadButtonPressed(): Integer; external CDllName delayed;
+function  GetGamepadAxisCount(const Agamepad: Integer): Integer; external CDllName delayed;
+function  GetGamepadAxisMovement(const Agamepad: Integer; const Aaxis: Integer): Single; external CDllName delayed;
+function  SetGamepadMappings(const Amappings: PUTF8Char): Integer; external CDllName delayed;
+procedure SetGamepadVibration(const Agamepad: Integer; const AleftMotor: Single; const ArightMotor: Single; const Aduration: Single); external CDllName delayed;
+function  IsMouseButtonPressed(const Abutton: Integer): Boolean; external CDllName delayed;
+function  IsMouseButtonDown(const Abutton: Integer): Boolean; external CDllName delayed;
+function  IsMouseButtonReleased(const Abutton: Integer): Boolean; external CDllName delayed;
+function  IsMouseButtonUp(const Abutton: Integer): Boolean; external CDllName delayed;
+function  GetMouseX(): Integer; external CDllName delayed;
+function  GetMouseY(): Integer; external CDllName delayed;
+function  GetMousePosition(): Vector2; external CDllName delayed;
+function  GetMouseDelta(): Vector2; external CDllName delayed;
+procedure SetMousePosition(const Ax: Integer; const Ay: Integer); external CDllName delayed;
+procedure SetMouseOffset(const AoffsetX: Integer; const AoffsetY: Integer); external CDllName delayed;
+procedure SetMouseScale(const AscaleX: Single; const AscaleY: Single); external CDllName delayed;
+function  GetMouseWheelMove(): Single; external CDllName delayed;
+function  GetMouseWheelMoveV(): Vector2; external CDllName delayed;
+procedure SetMouseCursor(const Acursor: Integer); external CDllName delayed;
+function  GetTouchX(): Integer; external CDllName delayed;
+function  GetTouchY(): Integer; external CDllName delayed;
+function  GetTouchPosition(const Aindex: Integer): Vector2; external CDllName delayed;
+function  GetTouchPointId(const Aindex: Integer): Integer; external CDllName delayed;
+function  GetTouchPointCount(): Integer; external CDllName delayed;
+procedure SetGesturesEnabled(const Aflags: Cardinal); external CDllName delayed;
+function  IsGestureDetected(const Agesture: Cardinal): Boolean; external CDllName delayed;
+function  GetGestureDetected(): Integer; external CDllName delayed;
+function  GetGestureHoldDuration(): Single; external CDllName delayed;
+function  GetGestureDragVector(): Vector2; external CDllName delayed;
+function  GetGestureDragAngle(): Single; external CDllName delayed;
+function  GetGesturePinchVector(): Vector2; external CDllName delayed;
+function  GetGesturePinchAngle(): Single; external CDllName delayed;
+procedure UpdateCamera(const Acamera: PCamera; const Amode: Integer); external CDllName delayed;
+procedure UpdateCameraPro(const Acamera: PCamera; const Amovement: Vector3; const Arotation: Vector3; const Azoom: Single); external CDllName delayed;
+procedure SetShapesTexture(const Atexture: Texture2D; const Asource: Rectangle); external CDllName delayed;
+function  GetShapesTexture(): Texture2D; external CDllName delayed;
+function  GetShapesTextureRectangle(): Rectangle; external CDllName delayed;
+procedure DrawPixel(const AposX: Integer; const AposY: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawPixelV(const Aposition: Vector2; const Acolor: Color); external CDllName delayed;
+procedure DrawLine(const AstartPosX: Integer; const AstartPosY: Integer; const AendPosX: Integer; const AendPosY: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawLineV(const AstartPos: Vector2; const AendPos: Vector2; const Acolor: Color); external CDllName delayed;
+procedure DrawLineEx(const AstartPos: Vector2; const AendPos: Vector2; const Athick: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawLineStrip(const Apoints: PVector2; const ApointCount: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawLineBezier(const AstartPos: Vector2; const AendPos: Vector2; const Athick: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawLineDashed(const AstartPos: Vector2; const AendPos: Vector2; const AdashSize: Integer; const AspaceSize: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawCircle(const AcenterX: Integer; const AcenterY: Integer; const Aradius: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawCircleV(const Acenter: Vector2; const Aradius: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawCircleGradient(const Acenter: Vector2; const Aradius: Single; const Ainner: Color; const Aouter: Color); external CDllName delayed;
+procedure DrawCircleSector(const Acenter: Vector2; const Aradius: Single; const AstartAngle: Single; const AendAngle: Single; const Asegments: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawCircleSectorLines(const Acenter: Vector2; const Aradius: Single; const AstartAngle: Single; const AendAngle: Single; const Asegments: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawCircleLines(const AcenterX: Integer; const AcenterY: Integer; const Aradius: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawCircleLinesV(const Acenter: Vector2; const Aradius: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawEllipse(const AcenterX: Integer; const AcenterY: Integer; const AradiusH: Single; const AradiusV: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawEllipseV(const Acenter: Vector2; const AradiusH: Single; const AradiusV: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawEllipseLines(const AcenterX: Integer; const AcenterY: Integer; const AradiusH: Single; const AradiusV: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawEllipseLinesV(const Acenter: Vector2; const AradiusH: Single; const AradiusV: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawRing(const Acenter: Vector2; const AinnerRadius: Single; const AouterRadius: Single; const AstartAngle: Single; const AendAngle: Single; const Asegments: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawRingLines(const Acenter: Vector2; const AinnerRadius: Single; const AouterRadius: Single; const AstartAngle: Single; const AendAngle: Single; const Asegments: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawRectangle(const AposX: Integer; const AposY: Integer; const Awidth: Integer; const Aheight: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawRectangleV(const Aposition: Vector2; const Asize: Vector2; const Acolor: Color); external CDllName delayed;
+procedure DrawRectangleRec(const Arec: Rectangle; const Acolor: Color); external CDllName delayed;
+procedure DrawRectanglePro(const Arec: Rectangle; const Aorigin: Vector2; const Arotation: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawRectangleGradientV(const AposX: Integer; const AposY: Integer; const Awidth: Integer; const Aheight: Integer; const Atop: Color; const Abottom: Color); external CDllName delayed;
+procedure DrawRectangleGradientH(const AposX: Integer; const AposY: Integer; const Awidth: Integer; const Aheight: Integer; const Aleft: Color; const Aright: Color); external CDllName delayed;
+procedure DrawRectangleGradientEx(const Arec: Rectangle; const AtopLeft: Color; const AbottomLeft: Color; const AbottomRight: Color; const AtopRight: Color); external CDllName delayed;
+procedure DrawRectangleLines(const AposX: Integer; const AposY: Integer; const Awidth: Integer; const Aheight: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawRectangleLinesEx(const Arec: Rectangle; const AlineThick: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawRectangleRounded(const Arec: Rectangle; const Aroundness: Single; const Asegments: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawRectangleRoundedLines(const Arec: Rectangle; const Aroundness: Single; const Asegments: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawRectangleRoundedLinesEx(const Arec: Rectangle; const Aroundness: Single; const Asegments: Integer; const AlineThick: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawTriangle(const Av1: Vector2; const Av2: Vector2; const Av3: Vector2; const Acolor: Color); external CDllName delayed;
+procedure DrawTriangleLines(const Av1: Vector2; const Av2: Vector2; const Av3: Vector2; const Acolor: Color); external CDllName delayed;
+procedure DrawTriangleFan(const Apoints: PVector2; const ApointCount: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawTriangleStrip(const Apoints: PVector2; const ApointCount: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawPoly(const Acenter: Vector2; const Asides: Integer; const Aradius: Single; const Arotation: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawPolyLines(const Acenter: Vector2; const Asides: Integer; const Aradius: Single; const Arotation: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawPolyLinesEx(const Acenter: Vector2; const Asides: Integer; const Aradius: Single; const Arotation: Single; const AlineThick: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawSplineLinear(const Apoints: PVector2; const ApointCount: Integer; const Athick: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawSplineBasis(const Apoints: PVector2; const ApointCount: Integer; const Athick: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawSplineCatmullRom(const Apoints: PVector2; const ApointCount: Integer; const Athick: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawSplineBezierQuadratic(const Apoints: PVector2; const ApointCount: Integer; const Athick: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawSplineBezierCubic(const Apoints: PVector2; const ApointCount: Integer; const Athick: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawSplineSegmentLinear(const Ap1: Vector2; const Ap2: Vector2; const Athick: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawSplineSegmentBasis(const Ap1: Vector2; const Ap2: Vector2; const Ap3: Vector2; const Ap4: Vector2; const Athick: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawSplineSegmentCatmullRom(const Ap1: Vector2; const Ap2: Vector2; const Ap3: Vector2; const Ap4: Vector2; const Athick: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawSplineSegmentBezierQuadratic(const Ap1: Vector2; const Ac2: Vector2; const Ap3: Vector2; const Athick: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawSplineSegmentBezierCubic(const Ap1: Vector2; const Ac2: Vector2; const Ac3: Vector2; const Ap4: Vector2; const Athick: Single; const Acolor: Color); external CDllName delayed;
+function  GetSplinePointLinear(const AstartPos: Vector2; const AendPos: Vector2; const At: Single): Vector2; external CDllName delayed;
+function  GetSplinePointBasis(const Ap1: Vector2; const Ap2: Vector2; const Ap3: Vector2; const Ap4: Vector2; const At: Single): Vector2; external CDllName delayed;
+function  GetSplinePointCatmullRom(const Ap1: Vector2; const Ap2: Vector2; const Ap3: Vector2; const Ap4: Vector2; const At: Single): Vector2; external CDllName delayed;
+function  GetSplinePointBezierQuad(const Ap1: Vector2; const Ac2: Vector2; const Ap3: Vector2; const At: Single): Vector2; external CDllName delayed;
+function  GetSplinePointBezierCubic(const Ap1: Vector2; const Ac2: Vector2; const Ac3: Vector2; const Ap4: Vector2; const At: Single): Vector2; external CDllName delayed;
+function  CheckCollisionRecs(const Arec1: Rectangle; const Arec2: Rectangle): Boolean; external CDllName delayed;
+function  CheckCollisionCircles(const Acenter1: Vector2; const Aradius1: Single; const Acenter2: Vector2; const Aradius2: Single): Boolean; external CDllName delayed;
+function  CheckCollisionCircleRec(const Acenter: Vector2; const Aradius: Single; const Arec: Rectangle): Boolean; external CDllName delayed;
+function  CheckCollisionCircleLine(const Acenter: Vector2; const Aradius: Single; const Ap1: Vector2; const Ap2: Vector2): Boolean; external CDllName delayed;
+function  CheckCollisionPointRec(const Apoint: Vector2; const Arec: Rectangle): Boolean; external CDllName delayed;
+function  CheckCollisionPointCircle(const Apoint: Vector2; const Acenter: Vector2; const Aradius: Single): Boolean; external CDllName delayed;
+function  CheckCollisionPointTriangle(const Apoint: Vector2; const Ap1: Vector2; const Ap2: Vector2; const Ap3: Vector2): Boolean; external CDllName delayed;
+function  CheckCollisionPointLine(const Apoint: Vector2; const Ap1: Vector2; const Ap2: Vector2; const Athreshold: Integer): Boolean; external CDllName delayed;
+function  CheckCollisionPointPoly(const Apoint: Vector2; const Apoints: PVector2; const ApointCount: Integer): Boolean; external CDllName delayed;
+function  CheckCollisionLines(const AstartPos1: Vector2; const AendPos1: Vector2; const AstartPos2: Vector2; const AendPos2: Vector2; const AcollisionPoint: PVector2): Boolean; external CDllName delayed;
+function  GetCollisionRec(const Arec1: Rectangle; const Arec2: Rectangle): Rectangle; external CDllName delayed;
+function  LoadImage(const AfileName: PUTF8Char): Image; external CDllName delayed;
+function  LoadImageRaw(const AfileName: PUTF8Char; const Awidth: Integer; const Aheight: Integer; const Aformat: Integer; const AheaderSize: Integer): Image; external CDllName delayed;
+function  LoadImageAnim(const AfileName: PUTF8Char; const Aframes: PInteger): Image; external CDllName delayed;
+function  LoadImageAnimFromMemory(const AfileType: PUTF8Char; const AfileData: PByte; const AdataSize: Integer; const Aframes: PInteger): Image; external CDllName delayed;
+function  LoadImageFromMemory(const AfileType: PUTF8Char; const AfileData: PByte; const AdataSize: Integer): Image; external CDllName delayed;
+function  LoadImageFromTexture(const Atexture: Texture2D): Image; external CDllName delayed;
+function  LoadImageFromScreen(): Image; external CDllName delayed;
+function  IsImageValid(const Aimage: Image): Boolean; external CDllName delayed;
+procedure UnloadImage(const Aimage: Image); external CDllName delayed;
+function  ExportImage(const Aimage: Image; const AfileName: PUTF8Char): Boolean; external CDllName delayed;
+function  ExportImageToMemory(const Aimage: Image; const AfileType: PUTF8Char; const AfileSize: PInteger): PByte; external CDllName delayed;
+function  ExportImageAsCode(const Aimage: Image; const AfileName: PUTF8Char): Boolean; external CDllName delayed;
+function  GenImageColor(const Awidth: Integer; const Aheight: Integer; const Acolor: Color): Image; external CDllName delayed;
+function  GenImageGradientLinear(const Awidth: Integer; const Aheight: Integer; const Adirection: Integer; const Astart: Color; const Aend: Color): Image; external CDllName delayed;
+function  GenImageGradientRadial(const Awidth: Integer; const Aheight: Integer; const Adensity: Single; const Ainner: Color; const Aouter: Color): Image; external CDllName delayed;
+function  GenImageGradientSquare(const Awidth: Integer; const Aheight: Integer; const Adensity: Single; const Ainner: Color; const Aouter: Color): Image; external CDllName delayed;
+function  GenImageChecked(const Awidth: Integer; const Aheight: Integer; const AchecksX: Integer; const AchecksY: Integer; const Acol1: Color; const Acol2: Color): Image; external CDllName delayed;
+function  GenImageWhiteNoise(const Awidth: Integer; const Aheight: Integer; const Afactor: Single): Image; external CDllName delayed;
+function  GenImagePerlinNoise(const Awidth: Integer; const Aheight: Integer; const AoffsetX: Integer; const AoffsetY: Integer; const Ascale: Single): Image; external CDllName delayed;
+function  GenImageCellular(const Awidth: Integer; const Aheight: Integer; const AtileSize: Integer): Image; external CDllName delayed;
+function  GenImageText(const Awidth: Integer; const Aheight: Integer; const Atext: PUTF8Char): Image; external CDllName delayed;
+function  ImageCopy(const Aimage: Image): Image; external CDllName delayed;
+function  ImageFromImage(const Aimage: Image; const Arec: Rectangle): Image; external CDllName delayed;
+function  ImageFromChannel(const Aimage: Image; const AselectedChannel: Integer): Image; external CDllName delayed;
+function  ImageText(const Atext: PUTF8Char; const AfontSize: Integer; const Acolor: Color): Image; external CDllName delayed;
+function  ImageTextEx(const Afont: Font; const Atext: PUTF8Char; const AfontSize: Single; const Aspacing: Single; const Atint: Color): Image; external CDllName delayed;
+procedure ImageFormat(const Aimage: PImage; const AnewFormat: Integer); external CDllName delayed;
+procedure ImageToPOT(const Aimage: PImage; const Afill: Color); external CDllName delayed;
+procedure ImageCrop(const Aimage: PImage; const Acrop: Rectangle); external CDllName delayed;
+procedure ImageAlphaCrop(const Aimage: PImage; const Athreshold: Single); external CDllName delayed;
+procedure ImageAlphaClear(const Aimage: PImage; const Acolor: Color; const Athreshold: Single); external CDllName delayed;
+procedure ImageAlphaMask(const Aimage: PImage; const AalphaMask: Image); external CDllName delayed;
+procedure ImageAlphaPremultiply(const Aimage: PImage); external CDllName delayed;
+procedure ImageBlurGaussian(const Aimage: PImage; const AblurSize: Integer); external CDllName delayed;
+procedure ImageKernelConvolution(const Aimage: PImage; const Akernel: PSingle; const AkernelSize: Integer); external CDllName delayed;
+procedure ImageResize(const Aimage: PImage; const AnewWidth: Integer; const AnewHeight: Integer); external CDllName delayed;
+procedure ImageResizeNN(const Aimage: PImage; const AnewWidth: Integer; const AnewHeight: Integer); external CDllName delayed;
+procedure ImageResizeCanvas(const Aimage: PImage; const AnewWidth: Integer; const AnewHeight: Integer; const AoffsetX: Integer; const AoffsetY: Integer; const Afill: Color); external CDllName delayed;
+procedure ImageMipmaps(const Aimage: PImage); external CDllName delayed;
+procedure ImageDither(const Aimage: PImage; const ArBpp: Integer; const AgBpp: Integer; const AbBpp: Integer; const AaBpp: Integer); external CDllName delayed;
+procedure ImageFlipVertical(const Aimage: PImage); external CDllName delayed;
+procedure ImageFlipHorizontal(const Aimage: PImage); external CDllName delayed;
+procedure ImageRotate(const Aimage: PImage; const Adegrees: Integer); external CDllName delayed;
+procedure ImageRotateCW(const Aimage: PImage); external CDllName delayed;
+procedure ImageRotateCCW(const Aimage: PImage); external CDllName delayed;
+procedure ImageColorTint(const Aimage: PImage; const Acolor: Color); external CDllName delayed;
+procedure ImageColorInvert(const Aimage: PImage); external CDllName delayed;
+procedure ImageColorGrayscale(const Aimage: PImage); external CDllName delayed;
+procedure ImageColorContrast(const Aimage: PImage; const Acontrast: Single); external CDllName delayed;
+procedure ImageColorBrightness(const Aimage: PImage; const Abrightness: Integer); external CDllName delayed;
+procedure ImageColorReplace(const Aimage: PImage; const Acolor: Color; const Areplace: Color); external CDllName delayed;
+function  LoadImageColors(const Aimage: Image): PColor; external CDllName delayed;
+function  LoadImagePalette(const Aimage: Image; const AmaxPaletteSize: Integer; const AcolorCount: PInteger): PColor; external CDllName delayed;
+procedure UnloadImageColors(const Acolors: PColor); external CDllName delayed;
+procedure UnloadImagePalette(const Acolors: PColor); external CDllName delayed;
+function  GetImageAlphaBorder(const Aimage: Image; const Athreshold: Single): Rectangle; external CDllName delayed;
+function  GetImageColor(const Aimage: Image; const Ax: Integer; const Ay: Integer): Color; external CDllName delayed;
+procedure ImageClearBackground(const Adst: PImage; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawPixel(const Adst: PImage; const AposX: Integer; const AposY: Integer; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawPixelV(const Adst: PImage; const Aposition: Vector2; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawLine(const Adst: PImage; const AstartPosX: Integer; const AstartPosY: Integer; const AendPosX: Integer; const AendPosY: Integer; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawLineV(const Adst: PImage; const Astart: Vector2; const Aend: Vector2; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawLineEx(const Adst: PImage; const Astart: Vector2; const Aend: Vector2; const Athick: Integer; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawCircle(const Adst: PImage; const AcenterX: Integer; const AcenterY: Integer; const Aradius: Integer; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawCircleV(const Adst: PImage; const Acenter: Vector2; const Aradius: Integer; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawCircleLines(const Adst: PImage; const AcenterX: Integer; const AcenterY: Integer; const Aradius: Integer; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawCircleLinesV(const Adst: PImage; const Acenter: Vector2; const Aradius: Integer; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawRectangle(const Adst: PImage; const AposX: Integer; const AposY: Integer; const Awidth: Integer; const Aheight: Integer; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawRectangleV(const Adst: PImage; const Aposition: Vector2; const Asize: Vector2; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawRectangleRec(const Adst: PImage; const Arec: Rectangle; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawRectangleLines(const Adst: PImage; const Arec: Rectangle; const Athick: Integer; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawTriangle(const Adst: PImage; const Av1: Vector2; const Av2: Vector2; const Av3: Vector2; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawTriangleEx(const Adst: PImage; const Av1: Vector2; const Av2: Vector2; const Av3: Vector2; const Ac1: Color; const Ac2: Color; const Ac3: Color); external CDllName delayed;
+procedure ImageDrawTriangleLines(const Adst: PImage; const Av1: Vector2; const Av2: Vector2; const Av3: Vector2; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawTriangleFan(const Adst: PImage; const Apoints: PVector2; const ApointCount: Integer; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawTriangleStrip(const Adst: PImage; const Apoints: PVector2; const ApointCount: Integer; const Acolor: Color); external CDllName delayed;
+procedure ImageDraw(const Adst: PImage; const Asrc: Image; const AsrcRec: Rectangle; const AdstRec: Rectangle; const Atint: Color); external CDllName delayed;
+procedure ImageDrawText(const Adst: PImage; const Atext: PUTF8Char; const AposX: Integer; const AposY: Integer; const AfontSize: Integer; const Acolor: Color); external CDllName delayed;
+procedure ImageDrawTextEx(const Adst: PImage; const Afont: Font; const Atext: PUTF8Char; const Aposition: Vector2; const AfontSize: Single; const Aspacing: Single; const Atint: Color); external CDllName delayed;
+function  LoadTexture(const AfileName: PUTF8Char): Texture2D; external CDllName delayed;
+function  LoadTextureFromImage(const Aimage: Image): Texture2D; external CDllName delayed;
+function  LoadTextureCubemap(const Aimage: Image; const Alayout: Integer): TextureCubemap; external CDllName delayed;
+function  LoadRenderTexture(const Awidth: Integer; const Aheight: Integer): RenderTexture2D; external CDllName delayed;
+function  IsTextureValid(const Atexture: Texture2D): Boolean; external CDllName delayed;
+procedure UnloadTexture(const Atexture: Texture2D); external CDllName delayed;
+function  IsRenderTextureValid(const Atarget: RenderTexture2D): Boolean; external CDllName delayed;
+procedure UnloadRenderTexture(const Atarget: RenderTexture2D); external CDllName delayed;
+procedure UpdateTexture(const Atexture: Texture2D; const Apixels: Pointer); external CDllName delayed;
+procedure UpdateTextureRec(const Atexture: Texture2D; const Arec: Rectangle; const Apixels: Pointer); external CDllName delayed;
+procedure GenTextureMipmaps(const Atexture: PTexture2D); external CDllName delayed;
+procedure SetTextureFilter(const Atexture: Texture2D; const Afilter: Integer); external CDllName delayed;
+procedure SetTextureWrap(const Atexture: Texture2D; const Awrap: Integer); external CDllName delayed;
+procedure DrawTexture(const Atexture: Texture2D; const AposX: Integer; const AposY: Integer; const Atint: Color); external CDllName delayed;
+procedure DrawTextureV(const Atexture: Texture2D; const Aposition: Vector2; const Atint: Color); external CDllName delayed;
+procedure DrawTextureEx(const Atexture: Texture2D; const Aposition: Vector2; const Arotation: Single; const Ascale: Single; const Atint: Color); external CDllName delayed;
+procedure DrawTextureRec(const Atexture: Texture2D; const Asource: Rectangle; const Aposition: Vector2; const Atint: Color); external CDllName delayed;
+procedure DrawTexturePro(const Atexture: Texture2D; const Asource: Rectangle; const Adest: Rectangle; const Aorigin: Vector2; const Arotation: Single; const Atint: Color); external CDllName delayed;
+procedure DrawTextureNPatch(const Atexture: Texture2D; const AnPatchInfo: NPatchInfo; const Adest: Rectangle; const Aorigin: Vector2; const Arotation: Single; const Atint: Color); external CDllName delayed;
+function  ColorIsEqual(const Acol1: Color; const Acol2: Color): Boolean; external CDllName delayed;
+function  Fade(const Acolor: Color; const Aalpha: Single): Color; external CDllName delayed;
+function  ColorToInt(const Acolor: Color): Integer; external CDllName delayed;
+function  ColorNormalize(const Acolor: Color): Vector4; external CDllName delayed;
+function  ColorFromNormalized(const Anormalized: Vector4): Color; external CDllName delayed;
+function  ColorToHSV(const Acolor: Color): Vector3; external CDllName delayed;
+function  ColorFromHSV(const Ahue: Single; const Asaturation: Single; const Avalue: Single): Color; external CDllName delayed;
+function  ColorTint(const Acolor: Color; const Atint: Color): Color; external CDllName delayed;
+function  ColorBrightness(const Acolor: Color; const Afactor: Single): Color; external CDllName delayed;
+function  ColorContrast(const Acolor: Color; const Acontrast: Single): Color; external CDllName delayed;
+function  ColorAlpha(const Acolor: Color; const Aalpha: Single): Color; external CDllName delayed;
+function  ColorAlphaBlend(const Adst: Color; const Asrc: Color; const Atint: Color): Color; external CDllName delayed;
+function  ColorLerp(const Acolor1: Color; const Acolor2: Color; const Afactor: Single): Color; external CDllName delayed;
+function  GetColor(const AhexValue: Cardinal): Color; external CDllName delayed;
+function  GetPixelColor(const AsrcPtr: Pointer; const Aformat: Integer): Color; external CDllName delayed;
+procedure SetPixelColor(const AdstPtr: Pointer; const Acolor: Color; const Aformat: Integer); external CDllName delayed;
+function  GetPixelDataSize(const Awidth: Integer; const Aheight: Integer; const Aformat: Integer): Integer; external CDllName delayed;
+function  GetFontDefault(): Font; external CDllName delayed;
+function  LoadFont(const AfileName: PUTF8Char): Font; external CDllName delayed;
+function  LoadFontEx(const AfileName: PUTF8Char; const AfontSize: Integer; const Acodepoints: PInteger; const AcodepointCount: Integer): Font; external CDllName delayed;
+function  LoadFontFromImage(const Aimage: Image; const Akey: Color; const AfirstChar: Integer): Font; external CDllName delayed;
+function  LoadFontFromMemory(const AfileType: PUTF8Char; const AfileData: PByte; const AdataSize: Integer; const AfontSize: Integer; const Acodepoints: PInteger; const AcodepointCount: Integer): Font; external CDllName delayed;
+function  IsFontValid(const Afont: Font): Boolean; external CDllName delayed;
+function  LoadFontData(const AfileData: PByte; const AdataSize: Integer; const AfontSize: Integer; const Acodepoints: PInteger; const AcodepointCount: Integer; const Atype: Integer; const AglyphCount: PInteger): PGlyphInfo; external CDllName delayed;
+function  GenImageFontAtlas(const Aglyphs: PGlyphInfo; const AglyphRecs: PPRectangle; const AglyphCount: Integer; const AfontSize: Integer; const Apadding: Integer; const ApackMethod: Integer): Image; external CDllName delayed;
+procedure UnloadFontData(const Aglyphs: PGlyphInfo; const AglyphCount: Integer); external CDllName delayed;
+procedure UnloadFont(const Afont: Font); external CDllName delayed;
+function  ExportFontAsCode(const Afont: Font; const AfileName: PUTF8Char): Boolean; external CDllName delayed;
+procedure DrawFPS(const AposX: Integer; const AposY: Integer); external CDllName delayed;
+procedure DrawText(const Atext: PUTF8Char; const AposX: Integer; const AposY: Integer; const AfontSize: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawTextEx(const Afont: Font; const Atext: PUTF8Char; const Aposition: Vector2; const AfontSize: Single; const Aspacing: Single; const Atint: Color); external CDllName delayed;
+procedure DrawTextPro(const Afont: Font; const Atext: PUTF8Char; const Aposition: Vector2; const Aorigin: Vector2; const Arotation: Single; const AfontSize: Single; const Aspacing: Single; const Atint: Color); external CDllName delayed;
+procedure DrawTextCodepoint(const Afont: Font; const Acodepoint: Integer; const Aposition: Vector2; const AfontSize: Single; const Atint: Color); external CDllName delayed;
+procedure DrawTextCodepoints(const Afont: Font; const Acodepoints: PInteger; const AcodepointCount: Integer; const Aposition: Vector2; const AfontSize: Single; const Aspacing: Single; const Atint: Color); external CDllName delayed;
+procedure SetTextLineSpacing(const Aspacing: Integer); external CDllName delayed;
+function  MeasureText(const Atext: PUTF8Char; const AfontSize: Integer): Integer; external CDllName delayed;
+function  MeasureTextEx(const Afont: Font; const Atext: PUTF8Char; const AfontSize: Single; const Aspacing: Single): Vector2; external CDllName delayed;
+function  MeasureTextCodepoints(const Afont: Font; const Acodepoints: PInteger; const Alength: Integer; const AfontSize: Single; const Aspacing: Single): Vector2; external CDllName delayed;
+function  GetGlyphIndex(const Afont: Font; const Acodepoint: Integer): Integer; external CDllName delayed;
+function  GetGlyphInfo(const Afont: Font; const Acodepoint: Integer): GlyphInfo; external CDllName delayed;
+function  GetGlyphAtlasRec(const Afont: Font; const Acodepoint: Integer): Rectangle; external CDllName delayed;
+function  LoadUTF8(const Acodepoints: PInteger; const Alength: Integer): PUTF8Char; external CDllName delayed;
+procedure UnloadUTF8(const Atext: PUTF8Char); external CDllName delayed;
+function  LoadCodepoints(const Atext: PUTF8Char; const Acount: PInteger): PInteger; external CDllName delayed;
+procedure UnloadCodepoints(const Acodepoints: PInteger); external CDllName delayed;
+function  GetCodepointCount(const Atext: PUTF8Char): Integer; external CDllName delayed;
+function  GetCodepoint(const Atext: PUTF8Char; const AcodepointSize: PInteger): Integer; external CDllName delayed;
+function  GetCodepointNext(const Atext: PUTF8Char; const AcodepointSize: PInteger): Integer; external CDllName delayed;
+function  GetCodepointPrevious(const Atext: PUTF8Char; const AcodepointSize: PInteger): Integer; external CDllName delayed;
+function  CodepointToUTF8(const Acodepoint: Integer; const Autf8Size: PInteger): PUTF8Char; external CDllName delayed;
+function  LoadTextLines(const Atext: PUTF8Char; const Acount: PInteger): PPUTF8Char; external CDllName delayed;
+procedure UnloadTextLines(const Atext: PPUTF8Char; const AlineCount: Integer); external CDllName delayed;
+function  TextCopy(const Adst: PUTF8Char; const Asrc: PUTF8Char): Integer; external CDllName delayed;
+function  TextIsEqual(const Atext1: PUTF8Char; const Atext2: PUTF8Char): Boolean; external CDllName delayed;
+function  TextLength(const Atext: PUTF8Char): Cardinal; external CDllName delayed;
+function  TextFormat(const Atext: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  TextSubtext(const Atext: PUTF8Char; const Aposition: Integer; const Alength: Integer): PUTF8Char; external CDllName delayed;
+function  TextRemoveSpaces(const Atext: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  GetTextBetween(const Atext: PUTF8Char; const Abegin: PUTF8Char; const Aend: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  TextReplace(const Atext: PUTF8Char; const Asearch: PUTF8Char; const Areplacement: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  TextReplaceAlloc(const Atext: PUTF8Char; const Asearch: PUTF8Char; const Areplacement: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  TextReplaceBetween(const Atext: PUTF8Char; const Abegin: PUTF8Char; const Aend: PUTF8Char; const Areplacement: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  TextReplaceBetweenAlloc(const Atext: PUTF8Char; const Abegin: PUTF8Char; const Aend: PUTF8Char; const Areplacement: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  TextInsert(const Atext: PUTF8Char; const Ainsert: PUTF8Char; const Aposition: Integer): PUTF8Char; external CDllName delayed;
+function  TextInsertAlloc(const Atext: PUTF8Char; const Ainsert: PUTF8Char; const Aposition: Integer): PUTF8Char; external CDllName delayed;
+function  TextJoin(const AtextList: PPUTF8Char; const Acount: Integer; const Adelimiter: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  TextSplit(const Atext: PUTF8Char; const Adelimiter: UTF8Char; const Acount: PInteger): PPUTF8Char; external CDllName delayed;
+procedure TextAppend(const Atext: PUTF8Char; const Aappend: PUTF8Char; const Aposition: PInteger); external CDllName delayed;
+function  TextFindIndex(const Atext: PUTF8Char; const Asearch: PUTF8Char): Integer; external CDllName delayed;
+function  TextToUpper(const Atext: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  TextToLower(const Atext: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  TextToPascal(const Atext: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  TextToSnake(const Atext: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  TextToCamel(const Atext: PUTF8Char): PUTF8Char; external CDllName delayed;
+function  TextToInteger(const Atext: PUTF8Char): Integer; external CDllName delayed;
+function  TextToFloat(const Atext: PUTF8Char): Single; external CDllName delayed;
+procedure DrawLine3D(const AstartPos: Vector3; const AendPos: Vector3; const Acolor: Color); external CDllName delayed;
+procedure DrawPoint3D(const Aposition: Vector3; const Acolor: Color); external CDllName delayed;
+procedure DrawCircle3D(const Acenter: Vector3; const Aradius: Single; const ArotationAxis: Vector3; const ArotationAngle: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawTriangle3D(const Av1: Vector3; const Av2: Vector3; const Av3: Vector3; const Acolor: Color); external CDllName delayed;
+procedure DrawTriangleStrip3D(const Apoints: PVector3; const ApointCount: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawCube(const Aposition: Vector3; const Awidth: Single; const Aheight: Single; const Alength: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawCubeV(const Aposition: Vector3; const Asize: Vector3; const Acolor: Color); external CDllName delayed;
+procedure DrawCubeWires(const Aposition: Vector3; const Awidth: Single; const Aheight: Single; const Alength: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawCubeWiresV(const Aposition: Vector3; const Asize: Vector3; const Acolor: Color); external CDllName delayed;
+procedure DrawSphere(const AcenterPos: Vector3; const Aradius: Single; const Acolor: Color); external CDllName delayed;
+procedure DrawSphereEx(const AcenterPos: Vector3; const Aradius: Single; const Arings: Integer; const Aslices: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawSphereWires(const AcenterPos: Vector3; const Aradius: Single; const Arings: Integer; const Aslices: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawCylinder(const Aposition: Vector3; const AradiusTop: Single; const AradiusBottom: Single; const Aheight: Single; const Aslices: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawCylinderEx(const AstartPos: Vector3; const AendPos: Vector3; const AstartRadius: Single; const AendRadius: Single; const Asides: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawCylinderWires(const Aposition: Vector3; const AradiusTop: Single; const AradiusBottom: Single; const Aheight: Single; const Aslices: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawCylinderWiresEx(const AstartPos: Vector3; const AendPos: Vector3; const AstartRadius: Single; const AendRadius: Single; const Asides: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawCapsule(const AstartPos: Vector3; const AendPos: Vector3; const Aradius: Single; const Aslices: Integer; const Arings: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawCapsuleWires(const AstartPos: Vector3; const AendPos: Vector3; const Aradius: Single; const Aslices: Integer; const Arings: Integer; const Acolor: Color); external CDllName delayed;
+procedure DrawPlane(const AcenterPos: Vector3; const Asize: Vector2; const Acolor: Color); external CDllName delayed;
+procedure DrawRay(const Aray: Ray; const Acolor: Color); external CDllName delayed;
+procedure DrawGrid(const Aslices: Integer; const Aspacing: Single); external CDllName delayed;
+function  LoadModel(const AfileName: PUTF8Char): Model; external CDllName delayed;
+function  LoadModelFromMesh(const Amesh: Mesh): Model; external CDllName delayed;
+function  IsModelValid(const Amodel: Model): Boolean; external CDllName delayed;
+procedure UnloadModel(const Amodel: Model); external CDllName delayed;
+function  GetModelBoundingBox(const Amodel: Model): BoundingBox; external CDllName delayed;
+procedure DrawModel(const Amodel: Model; const Aposition: Vector3; const Ascale: Single; const Atint: Color); external CDllName delayed;
+procedure DrawModelEx(const Amodel: Model; const Aposition: Vector3; const ArotationAxis: Vector3; const ArotationAngle: Single; const Ascale: Vector3; const Atint: Color); external CDllName delayed;
+procedure DrawModelWires(const Amodel: Model; const Aposition: Vector3; const Ascale: Single; const Atint: Color); external CDllName delayed;
+procedure DrawModelWiresEx(const Amodel: Model; const Aposition: Vector3; const ArotationAxis: Vector3; const ArotationAngle: Single; const Ascale: Vector3; const Atint: Color); external CDllName delayed;
+procedure DrawBoundingBox(const Abox: BoundingBox; const Acolor: Color); external CDllName delayed;
+procedure DrawBillboard(const Acamera: Camera; const Atexture: Texture2D; const Aposition: Vector3; const Ascale: Single; const Atint: Color); external CDllName delayed;
+procedure DrawBillboardRec(const Acamera: Camera; const Atexture: Texture2D; const Asource: Rectangle; const Aposition: Vector3; const Asize: Vector2; const Atint: Color); external CDllName delayed;
+procedure DrawBillboardPro(const Acamera: Camera; const Atexture: Texture2D; const Asource: Rectangle; const Aposition: Vector3; const Aup: Vector3; const Asize: Vector2; const Aorigin: Vector2; const Arotation: Single; const Atint: Color); external CDllName delayed;
+procedure UploadMesh(const Amesh: PMesh; const Adynamic: Boolean); external CDllName delayed;
+procedure UpdateMeshBuffer(const Amesh: Mesh; const Aindex: Integer; const Adata: Pointer; const AdataSize: Integer; const Aoffset: Integer); external CDllName delayed;
+procedure UnloadMesh(const Amesh: Mesh); external CDllName delayed;
+procedure DrawMesh(const Amesh: Mesh; const Amaterial: Material; const Atransform: Matrix); external CDllName delayed;
+procedure DrawMeshInstanced(const Amesh: Mesh; const Amaterial: Material; const Atransforms: PMatrix; const Ainstances: Integer); external CDllName delayed;
+function  GetMeshBoundingBox(const Amesh: Mesh): BoundingBox; external CDllName delayed;
+procedure GenMeshTangents(const Amesh: PMesh); external CDllName delayed;
+function  ExportMesh(const Amesh: Mesh; const AfileName: PUTF8Char): Boolean; external CDllName delayed;
+function  ExportMeshAsCode(const Amesh: Mesh; const AfileName: PUTF8Char): Boolean; external CDllName delayed;
+function  GenMeshPoly(const Asides: Integer; const Aradius: Single): Mesh; external CDllName delayed;
+function  GenMeshPlane(const Awidth: Single; const Alength: Single; const AresX: Integer; const AresZ: Integer): Mesh; external CDllName delayed;
+function  GenMeshCube(const Awidth: Single; const Aheight: Single; const Alength: Single): Mesh; external CDllName delayed;
+function  GenMeshSphere(const Aradius: Single; const Arings: Integer; const Aslices: Integer): Mesh; external CDllName delayed;
+function  GenMeshHemiSphere(const Aradius: Single; const Arings: Integer; const Aslices: Integer): Mesh; external CDllName delayed;
+function  GenMeshCylinder(const Aradius: Single; const Aheight: Single; const Aslices: Integer): Mesh; external CDllName delayed;
+function  GenMeshCone(const Aradius: Single; const Aheight: Single; const Aslices: Integer): Mesh; external CDllName delayed;
+function  GenMeshTorus(const Aradius: Single; const Asize: Single; const AradSeg: Integer; const Asides: Integer): Mesh; external CDllName delayed;
+function  GenMeshKnot(const Aradius: Single; const Asize: Single; const AradSeg: Integer; const Asides: Integer): Mesh; external CDllName delayed;
+function  GenMeshHeightmap(const Aheightmap: Image; const Asize: Vector3): Mesh; external CDllName delayed;
+function  GenMeshCubicmap(const Acubicmap: Image; const AcubeSize: Vector3): Mesh; external CDllName delayed;
+function  LoadMaterials(const AfileName: PUTF8Char; const AmaterialCount: PInteger): PMaterial; external CDllName delayed;
+function  LoadMaterialDefault(): Material; external CDllName delayed;
+function  IsMaterialValid(const Amaterial: Material): Boolean; external CDllName delayed;
+procedure UnloadMaterial(const Amaterial: Material); external CDllName delayed;
+procedure SetMaterialTexture(const Amaterial: PMaterial; const AmapType: Integer; const Atexture: Texture2D); external CDllName delayed;
+procedure SetModelMeshMaterial(const Amodel: PModel; const AmeshId: Integer; const AmaterialId: Integer); external CDllName delayed;
+function  LoadModelAnimations(const AfileName: PUTF8Char; const AanimCount: PInteger): PModelAnimation; external CDllName delayed;
+procedure UpdateModelAnimation(const Amodel: Model; const Aanim: ModelAnimation; const Aframe: Single); external CDllName delayed;
+procedure UpdateModelAnimationEx(const Amodel: Model; const AanimA: ModelAnimation; const AframeA: Single; const AanimB: ModelAnimation; const AframeB: Single; const Ablend: Single); external CDllName delayed;
+procedure UnloadModelAnimations(const Aanimations: PModelAnimation; const AanimCount: Integer); external CDllName delayed;
+function  IsModelAnimationValid(const Amodel: Model; const Aanim: ModelAnimation): Boolean; external CDllName delayed;
+function  CheckCollisionSpheres(const Acenter1: Vector3; const Aradius1: Single; const Acenter2: Vector3; const Aradius2: Single): Boolean; external CDllName delayed;
+function  CheckCollisionBoxes(const Abox1: BoundingBox; const Abox2: BoundingBox): Boolean; external CDllName delayed;
+function  CheckCollisionBoxSphere(const Abox: BoundingBox; const Acenter: Vector3; const Aradius: Single): Boolean; external CDllName delayed;
+function  GetRayCollisionSphere(const Aray: Ray; const Acenter: Vector3; const Aradius: Single): RayCollision; external CDllName delayed;
+function  GetRayCollisionBox(const Aray: Ray; const Abox: BoundingBox): RayCollision; external CDllName delayed;
+function  GetRayCollisionMesh(const Aray: Ray; const Amesh: Mesh; const Atransform: Matrix): RayCollision; external CDllName delayed;
+function  GetRayCollisionTriangle(const Aray: Ray; const Ap1: Vector3; const Ap2: Vector3; const Ap3: Vector3): RayCollision; external CDllName delayed;
+function  GetRayCollisionQuad(const Aray: Ray; const Ap1: Vector3; const Ap2: Vector3; const Ap3: Vector3; const Ap4: Vector3): RayCollision; external CDllName delayed;
+procedure InitAudioDevice(); external CDllName delayed;
+procedure CloseAudioDevice(); external CDllName delayed;
+function  IsAudioDeviceReady(): Boolean; external CDllName delayed;
+procedure SetMasterVolume(const Avolume: Single); external CDllName delayed;
+function  GetMasterVolume(): Single; external CDllName delayed;
+function  LoadWave(const AfileName: PUTF8Char): Wave; external CDllName delayed;
+function  LoadWaveFromMemory(const AfileType: PUTF8Char; const AfileData: PByte; const AdataSize: Integer): Wave; external CDllName delayed;
+function  IsWaveValid(const Awave: Wave): Boolean; external CDllName delayed;
+function  LoadSound(const AfileName: PUTF8Char): Sound; external CDllName delayed;
+function  LoadSoundFromWave(const Awave: Wave): Sound; external CDllName delayed;
+function  LoadSoundAlias(const Asource: Sound): Sound; external CDllName delayed;
+function  IsSoundValid(const Asound: Sound): Boolean; external CDllName delayed;
+procedure UpdateSound(const Asound: Sound; const Adata: Pointer; const AsampleCount: Integer); external CDllName delayed;
+procedure UnloadWave(const Awave: Wave); external CDllName delayed;
+procedure UnloadSound(const Asound: Sound); external CDllName delayed;
+procedure UnloadSoundAlias(const Aalias: Sound); external CDllName delayed;
+function  ExportWave(const Awave: Wave; const AfileName: PUTF8Char): Boolean; external CDllName delayed;
+function  ExportWaveAsCode(const Awave: Wave; const AfileName: PUTF8Char): Boolean; external CDllName delayed;
+procedure PlaySound(const Asound: Sound); external CDllName delayed;
+procedure StopSound(const Asound: Sound); external CDllName delayed;
+procedure PauseSound(const Asound: Sound); external CDllName delayed;
+procedure ResumeSound(const Asound: Sound); external CDllName delayed;
+function  IsSoundPlaying(const Asound: Sound): Boolean; external CDllName delayed;
+procedure SetSoundVolume(const Asound: Sound; const Avolume: Single); external CDllName delayed;
+procedure SetSoundPitch(const Asound: Sound; const Apitch: Single); external CDllName delayed;
+procedure SetSoundPan(const Asound: Sound; const Apan: Single); external CDllName delayed;
+function  WaveCopy(const Awave: Wave): Wave; external CDllName delayed;
+procedure WaveCrop(const Awave: PWave; const AinitFrame: Integer; const AfinalFrame: Integer); external CDllName delayed;
+procedure WaveFormat(const Awave: PWave; const AsampleRate: Integer; const AsampleSize: Integer; const Achannels: Integer); external CDllName delayed;
+function  LoadWaveSamples(const Awave: Wave): PSingle; external CDllName delayed;
+procedure UnloadWaveSamples(const Asamples: PSingle); external CDllName delayed;
+function  LoadMusicStream(const AfileName: PUTF8Char): Music; external CDllName delayed;
+function  LoadMusicStreamFromMemory(const AfileType: PUTF8Char; const Adata: PByte; const AdataSize: Integer): Music; external CDllName delayed;
+function  IsMusicValid(const Amusic: Music): Boolean; external CDllName delayed;
+procedure UnloadMusicStream(const Amusic: Music); external CDllName delayed;
+procedure PlayMusicStream(const Amusic: Music); external CDllName delayed;
+function  IsMusicStreamPlaying(const Amusic: Music): Boolean; external CDllName delayed;
+procedure UpdateMusicStream(const Amusic: Music); external CDllName delayed;
+procedure StopMusicStream(const Amusic: Music); external CDllName delayed;
+procedure PauseMusicStream(const Amusic: Music); external CDllName delayed;
+procedure ResumeMusicStream(const Amusic: Music); external CDllName delayed;
+procedure SeekMusicStream(const Amusic: Music; const Aposition: Single); external CDllName delayed;
+procedure SetMusicVolume(const Amusic: Music; const Avolume: Single); external CDllName delayed;
+procedure SetMusicPitch(const Amusic: Music; const Apitch: Single); external CDllName delayed;
+procedure SetMusicPan(const Amusic: Music; const Apan: Single); external CDllName delayed;
+function  GetMusicTimeLength(const Amusic: Music): Single; external CDllName delayed;
+function  GetMusicTimePlayed(const Amusic: Music): Single; external CDllName delayed;
+function  LoadAudioStream(const AsampleRate: Cardinal; const AsampleSize: Cardinal; const Achannels: Cardinal): AudioStream; external CDllName delayed;
+function  IsAudioStreamValid(const Astream: AudioStream): Boolean; external CDllName delayed;
+procedure UnloadAudioStream(const Astream: AudioStream); external CDllName delayed;
+procedure UpdateAudioStream(const Astream: AudioStream; const Adata: Pointer; const AframeCount: Integer); external CDllName delayed;
+function  IsAudioStreamProcessed(const Astream: AudioStream): Boolean; external CDllName delayed;
+procedure PlayAudioStream(const Astream: AudioStream); external CDllName delayed;
+procedure PauseAudioStream(const Astream: AudioStream); external CDllName delayed;
+procedure ResumeAudioStream(const Astream: AudioStream); external CDllName delayed;
+function  IsAudioStreamPlaying(const Astream: AudioStream): Boolean; external CDllName delayed;
+procedure StopAudioStream(const Astream: AudioStream); external CDllName delayed;
+procedure SetAudioStreamVolume(const Astream: AudioStream; const Avolume: Single); external CDllName delayed;
+procedure SetAudioStreamPitch(const Astream: AudioStream; const Apitch: Single); external CDllName delayed;
+procedure SetAudioStreamPan(const Astream: AudioStream; const Apan: Single); external CDllName delayed;
+procedure SetAudioStreamBufferSizeDefault(const Asize: Integer); external CDllName delayed;
+procedure SetAudioStreamCallback(const Astream: AudioStream; const Acallback: AudioCallback); external CDllName delayed;
+procedure AttachAudioStreamProcessor(const Astream: AudioStream; const Aprocessor: AudioCallback); external CDllName delayed;
+procedure DetachAudioStreamProcessor(const Astream: AudioStream; const Aprocessor: AudioCallback); external CDllName delayed;
+procedure AttachAudioMixedProcessor(const Aprocessor: AudioCallback); external CDllName delayed;
+procedure DetachAudioMixedProcessor(const Aprocessor: AudioCallback); external CDllName delayed;
+
+implementation
+
+end.

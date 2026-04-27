@@ -205,7 +205,7 @@ uses
 
 const
   CDllName = 'sdl3_mixer.dll';
-  CResName = 'ra382dec45afc48f6849a921414f79be0';
+  CResName = 'r7beb4a1839854d52bea99370827860d8';
 
 var
   GDllHandle: THandle = 0;

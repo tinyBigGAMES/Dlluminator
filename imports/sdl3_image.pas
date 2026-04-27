@@ -199,7 +199,7 @@ uses
 
 const
   CDllName = 'sdl3_image.dll';
-  CResName = 'rac06d3ac51064875aa5b0c4f878b2d68';
+  CResName = 're6cb92bb13ee40ca9f71c7c1160ba778';
 
 var
   GDllHandle: THandle = 0;
