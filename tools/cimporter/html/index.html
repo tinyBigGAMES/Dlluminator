@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en" data-webawesome="/vendor/webawesome/">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dlluminator CImporter</title>
+  <link rel="stylesheet" href="/vendor/webawesome/styles/themes/default.css">
+  <link rel="stylesheet" href="/vendor/webawesome/styles/webawesome.css">
+  <script type="module" src="/vendor/webawesome/webawesome.loader.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    :root {
+      color-scheme: dark;
+      --bg-base: #0f0f1a;
+      --bg-surface: #171728;
+      --bg-card: #1c1c32;
+      --bg-card-hover: #22223a;
+      --bg-input: #12121f;
+      --bg-input-focus: #181830;
+      --border-subtle: rgba(255,255,255,0.06);
+      --border-card: rgba(255,255,255,0.08);
+      --border-input: rgba(255,255,255,0.1);
+      --border-focus: rgba(108,140,255,0.5);
+      --text-primary: #e8e8f4;
+      --text-secondary: #8b8ba8;
+      --text-muted: #5a5a78;
+      --accent: #6c8cff;
+      --accent-bright: #88a4ff;
+      --accent-glow: rgba(108,140,255,0.15);
+      --accent-glow-strong: rgba(108,140,255,0.3);
+      --green: #4ade80;
+      --red: #f87171;
+      --amber: #fbbf24;
+      --log-bg: #0a0a14;
+      --shadow-card: 0 2px 8px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+      --shadow-elevated: 0 8px 24px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3);
+      --radius: 8px;
+      --radius-lg: 12px;
+      --transition: 150ms ease;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      display: flex; flex-direction: column;
+      height: 100vh; overflow: hidden;
+      font-size: 13px; line-height: 1.5;
+    }
+
+    /* ── Web Awesome overrides ── */
+    wa-input::part(base) {
+      background: var(--bg-input); color: var(--text-primary);
+      border: 1px solid var(--border-input); border-radius: 6px;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+    wa-input::part(base):focus-within {
+      border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    wa-input::part(input) { color: var(--text-primary); }
+    wa-input::part(input)::placeholder { color: var(--text-muted); }
+    wa-input::part(form-control-label) { color: var(--text-secondary); font-size: 11px; font-weight: 500; }
+
+    wa-button[variant="neutral"]::part(base) {
+      background: var(--bg-card); color: var(--text-primary);
+      border: 1px solid var(--border-card); border-radius: 6px;
+      transition: all var(--transition);
+    }
+    wa-button[variant="neutral"]::part(base):hover {
+      background: var(--bg-card-hover); border-color: var(--border-input);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    wa-button[variant="brand"]::part(base) {
+      background: var(--accent); border: none; border-radius: 6px;
+      transition: all var(--transition);
+    }
+    wa-button[variant="brand"]::part(base):hover {
+      background: var(--accent-bright); box-shadow: 0 0 16px var(--accent-glow-strong);
+    }
+    wa-checkbox::part(label) { color: var(--text-primary); font-size: 13px; }
+    wa-checkbox::part(control) { border-color: var(--border-input); }
+    wa-spinner { color: var(--accent); }
+
+    /* ── Header bar ── */
+    .header-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 16px;
+      background: linear-gradient(180deg, #1e1e36 0%, var(--bg-surface) 100%);
+      border-bottom: 1px solid var(--border-subtle);
+      flex-shrink: 0;
+    }
+    .header-brand {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .header-brand .logo {
+      width: 28px; height: 28px; border-radius: 6px;
+      background: linear-gradient(135deg, var(--accent) 0%, #a78bfa 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 14px; color: #fff;
+      box-shadow: 0 2px 8px rgba(108,140,255,0.3);
+    }
+    .header-brand h1 {
+      font-size: 14px; font-weight: 600; color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+    .header-brand h1 span { color: var(--accent); font-weight: 400; }
+    .header-actions { display: flex; align-items: center; gap: 6px; }
+
+    /* ── Main layout ── */
+    .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .content {
+      flex: 1; overflow-y: auto; padding: 12px 16px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      box-shadow: var(--shadow-card);
+      transition: border-color var(--transition);
+    }
+    .card:hover { border-color: rgba(255,255,255,0.1); }
+    .card-title {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--accent);
+      margin-bottom: 10px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .card-title wa-icon { font-size: 14px; }
+
+    /* ── Form rows ── */
+    .form-row {
+      display: flex; align-items: flex-end; gap: 6px; margin-bottom: 6px;
+    }
+    .form-row:last-child { margin-bottom: 0; }
+    .form-row wa-input { flex: 1; }
+    .form-row-half { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+
+    /* ── Binding mode chips ── */
+    .chip-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 20px;
+      font-size: 12px; font-weight: 500; cursor: pointer;
+      background: var(--bg-input); border: 1px solid var(--border-input);
+      color: var(--text-secondary);
+      transition: all var(--transition); user-select: none;
+    }
+    .chip:hover { border-color: var(--accent); color: var(--text-primary); background: var(--bg-card-hover); }
+    .chip.active {
+      background: var(--accent-glow); border-color: var(--accent);
+      color: var(--accent-bright); box-shadow: 0 0 12px var(--accent-glow);
+    }
+    .chip .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--text-muted); transition: all var(--transition);
+    }
+    .chip.active .dot {
+      background: var(--accent); box-shadow: 0 0 6px var(--accent);
+    }
+
+    /* ── Paths & filters ── */
+    .dual-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .sub-label {
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px;
+    }
+    .item-list {
+      max-height: 120px; overflow-y: auto;
+      border: 1px solid var(--border-subtle); border-radius: 6px;
+      background: var(--bg-input);
+    }
+    .item-list:empty { display: none; }
+    .item-list .item-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 3px 8px; font-size: 12px; color: var(--text-primary);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .item-list .item-row:last-child { border-bottom: none; }
+    .item-list .item-row:hover { background: rgba(255,255,255,0.03); }
+    .item-list .item-row .item-text {
+      flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+      font-size: 11px;
+    }
+    .item-list .item-row .item-remove {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 14px; padding: 0 2px; line-height: 1;
+      border-radius: 3px; transition: all var(--transition);
+      flex-shrink: 0; margin-left: 6px;
+    }
+    .item-list .item-row .item-remove:hover { color: var(--red); background: rgba(248,113,113,0.1); }
+    .item-count {
+      font-size: 10px; color: var(--text-muted); margin-top: 2px;
+      text-align: right;
+    }
+    .add-row {
+      display: flex; align-items: center; gap: 4px; margin-top: 4px;
+    }
+    .add-row wa-input { flex: 1; }
+    .rename-arrow { color: var(--text-muted); font-size: 16px; padding: 0 2px; }
+
+    /* ── Generate button (in header) ── */
+    .btn-generate::part(base) {
+      background: linear-gradient(135deg, #6c8cff 0%, #a78bfa 100%) !important;
+      border: none !important; border-radius: 6px !important;
+      padding: 6px 18px !important; font-size: 13px !important; font-weight: 600 !important;
+      box-shadow: 0 2px 12px rgba(108,140,255,0.35);
+      transition: all var(--transition) !important;
+    }
+    .btn-generate::part(base):hover {
+      box-shadow: 0 4px 20px rgba(108,140,255,0.5) !important;
+      transform: translateY(-1px);
+    }
+    .generate-status { color: var(--accent-bright); font-size: 11px; }
+
+    /* ── Drag handle ── */
+    .drag-handle {
+      height: 5px; cursor: ns-resize; flex-shrink: 0;
+      background: var(--border-subtle); position: relative;
+      transition: background var(--transition);
+    }
+    .drag-handle::after {
+      content: ''; position: absolute;
+      left: 50%; top: 50%; transform: translate(-50%, -50%);
+      width: 40px; height: 3px; border-radius: 2px;
+      background: var(--text-muted); opacity: 0.4;
+      transition: opacity var(--transition);
+    }
+    .drag-handle:hover { background: var(--accent-glow); }
+    .drag-handle:hover::after { opacity: 0.8; background: var(--accent); }
+    .drag-handle.dragging { background: var(--accent-glow); }
+    .drag-handle.dragging::after { opacity: 1; background: var(--accent); }
+
+    /* ── Log panel ── */
+    .log-wrapper {
+      flex-shrink: 0; display: flex; flex-direction: column;
+      min-height: 60px; max-height: 50vh; height: 140px;
+      background: var(--log-bg);
+    }
+    .log-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 10px; flex-shrink: 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .log-header-title {
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-muted);
+      display: flex; align-items: center; gap: 5px;
+    }
+    .log-header-title wa-icon { font-size: 12px; }
+    .btn-clear-log {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 11px; padding: 2px 6px; border-radius: 4px;
+      transition: all var(--transition);
+    }
+    .btn-clear-log:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
+    .log-content {
+      flex: 1; overflow-y: auto; padding: 6px 10px;
+      font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+      font-size: 12px; line-height: 1.6;
+    }
+    .log-line { white-space: pre-wrap; word-break: break-all; }
+    .log-line.empty { height: 1em; }
+
+    /* ── States ── */
+    .generating .content { pointer-events: none; opacity: 0.5; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+    /* ── Filter section spacing ── */
+    .filter-group { margin-bottom: 10px; }
+    .filter-group:last-child { margin-bottom: 0; }
+
+    /* ── Settings dialog ── */
+    wa-dialog::part(panel) {
+      background: #222240; border: 1px solid rgba(108,140,255,0.3);
+      border-radius: var(--radius-lg); color: var(--text-primary);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(108,140,255,0.1);
+    }
+    wa-dialog::part(body) { background: #222240; color: var(--text-primary); padding: 20px 24px; }
+    wa-dialog::part(header) { background: #1a1a36; border-bottom: 1px solid rgba(108,140,255,0.15); color: var(--text-primary); padding: 14px 24px; }
+    wa-dialog::part(title) { color: var(--text-primary); font-size: 15px; font-weight: 600; }
+    wa-dialog::part(footer) { background: #1a1a36; border-top: 1px solid rgba(108,140,255,0.15); padding: 14px 24px; }
+    wa-dialog::part(overlay) { background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
+    wa-dialog::part(close-button) { color: var(--text-secondary); }
+    wa-dialog::part(close-button__base) { color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+  <!-- ── Header ── -->
+  <div class="header-bar">
+    <div class="header-brand">
+      <div class="logo" title="Dlluminator CImporter">D</div>
+      <h1>Project<span id="projectName"> - none</span></h1>
+    </div>
+    <div class="header-actions">
+      <span id="lblGenerateStatus" class="generate-status"></span>
+      <wa-spinner id="spinGenerate" style="display:none;font-size:1.2rem;"></wa-spinner>
+      <wa-button variant="brand" class="btn-generate" id="btnGenerate" title="Generate Delphi bindings for selected modes">
+        <wa-icon slot="prefix" name="play" library="system"></wa-icon>
+        Generate
+      </wa-button>
+      <wa-button variant="neutral" size="small" id="btnNewProject" title="Create a new empty project">
+        <wa-icon slot="prefix" name="file" library="system"></wa-icon>
+        New
+      </wa-button>
+      <wa-button variant="neutral" size="small" id="btnLoadConfig" title="Load project config from a TOML file">
+        <wa-icon slot="prefix" name="folder-open" library="system"></wa-icon>
+        Load Config
+      </wa-button>
+      <wa-button variant="neutral" size="small" id="btnSaveConfig" title="Save project config to a TOML file">
+        <wa-icon slot="prefix" name="floppy-disk" library="system"></wa-icon>
+        Save Config
+      </wa-button>
+      <wa-button variant="neutral" size="small" id="btnSettings" title="Settings" style="margin-left:4px;">
+        <wa-icon name="gear" library="system"></wa-icon>
+      </wa-button>
+    </div>
+  </div>
+
+  <!-- ── Main area ── -->
+  <div class="main-area">
+    <div class="content">
+
+      <!-- Header & Output -->
+      <div class="card">
+        <div class="card-title">
+          <wa-icon name="file-code" library="system"></wa-icon>
+          Header &amp; Output
+        </div>
+        <div class="form-row">
+          <wa-input id="inpHeader" label="C Header File" placeholder="Select a C header file..." size="small" clearable title="Path to the C header file to convert"></wa-input>
+          <wa-button variant="neutral" size="small" id="btnBrowseHeader" title="Browse for a C header file (.h)">
+            <wa-icon slot="prefix" name="folder-open" library="system"></wa-icon>
+            Browse
+          </wa-button>
+        </div>
+        <div class="form-row">
+          <wa-input id="inpDllPath" label="DLL File" placeholder="Select the DLL to bind..." size="small" clearable title="Path to the DLL file for static embedding or analysis"></wa-input>
+          <wa-button variant="neutral" size="small" id="btnBrowseDll" title="Browse for a DLL file">
+            <wa-icon slot="prefix" name="folder-open" library="system"></wa-icon>
+            Browse
+          </wa-button>
+        </div>
+        <div class="form-row-half">
+          <wa-input id="inpModuleName" label="Module Name" placeholder="e.g. raylib" size="small" title="Name of the generated Delphi unit"></wa-input>
+          <wa-input id="inpDllName" label="DLL Name" placeholder="e.g. raylib" size="small" title="DLL filename used in the generated code"></wa-input>
+        </div>
+        <div class="form-row">
+          <wa-input id="inpOutputPath" label="Output Path" placeholder="Where to save generated .pas files..." size="small" clearable title="Folder where generated .pas and .res files are saved"></wa-input>
+          <wa-button variant="neutral" size="small" id="btnBrowseOutput" title="Browse for output folder">
+            <wa-icon slot="prefix" name="folder-open" library="system"></wa-icon>
+            Browse
+          </wa-button>
+        </div>
+      </div>
+
+      <!-- Binding Modes -->
+      <div class="card">
+        <div class="card-title">
+          <wa-icon name="link" library="system"></wa-icon>
+          Binding Mode
+        </div>
+        <div class="chip-grid">
+          <div class="chip active" data-mode="static" title="Embed DLL as RCDATA resource, loaded from memory at runtime"><span class="dot"></span>Static (RCDATA)</div>
+          <div class="chip" data-mode="dynamic" title="Dynamic loading via LoadLibrary and GetProcAddress"><span class="dot"></span>Dynamic</div>
+          <div class="chip" data-mode="dynamic_delayed" title="Delayed loading, functions resolved on first call"><span class="dot"></span>Delayed</div>
+          <div class="chip" data-mode="dynamic_custom" title="Custom dynamic loading with user-defined loader"><span class="dot"></span>Custom</div>
+          <div class="chip" data-mode="static_vpk" title="Static linking via Virtual Package Kit"><span class="dot"></span>VPK</div>
+        </div>
+      </div>
+
+      <!-- Paths -->
+      <div class="card">
+        <div class="card-title">
+          <wa-icon name="folder" library="system"></wa-icon>
+          Paths
+        </div>
+        <div class="dual-col">
+          <div>
+            <div class="sub-label">Include Paths</div>
+            <div id="includePathList" class="item-list"></div>
+            <div id="includePathCount" class="item-count"></div>
+            <div class="add-row">
+              <wa-input id="inpIncludePath" size="small" placeholder="Add path..." clearable title="Additional include path for the C preprocessor"></wa-input>
+              <wa-button variant="neutral" size="small" id="btnBrowseInclude" title="Browse for include path">
+                <wa-icon name="folder-open" library="system"></wa-icon>
+              </wa-button>
+              <wa-button variant="brand" size="small" id="btnAddInclude" title="Add include path to list">
+                <wa-icon name="plus" library="system"></wa-icon>
+              </wa-button>
+            </div>
+          </div>
+          <div>
+            <div class="sub-label">Source Paths</div>
+            <div id="sourcePathList" class="item-list"></div>
+            <div id="sourcePathCount" class="item-count"></div>
+            <div class="add-row">
+              <wa-input id="inpSourcePath" size="small" placeholder="Add path..." clearable title="Source path to filter declarations from"></wa-input>
+              <wa-button variant="neutral" size="small" id="btnBrowseSource" title="Browse for source path">
+                <wa-icon name="folder-open" library="system"></wa-icon>
+              </wa-button>
+              <wa-button variant="brand" size="small" id="btnAddSource" title="Add source path to list">
+                <wa-icon name="plus" library="system"></wa-icon>
+              </wa-button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="card">
+        <div class="card-title">
+          <wa-icon name="filter" library="system"></wa-icon>
+          Filters
+        </div>
+        <div class="filter-group">
+          <div class="sub-label">Excluded Types</div>
+          <div id="excludedTypeList" class="item-list"></div>
+          <div id="excludedTypeCount" class="item-count"></div>
+          <div class="add-row">
+            <wa-input id="inpExcludedType" size="small" placeholder="e.g. va_list" clearable title="C type name to exclude from generation"></wa-input>
+            <wa-button variant="brand" size="small" id="btnAddExcludedType" title="Add type to exclusion list"><wa-icon name="plus" library="system"></wa-icon></wa-button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <div class="sub-label">Excluded Functions</div>
+          <div id="excludedFuncList" class="item-list"></div>
+          <div id="excludedFuncCount" class="item-count"></div>
+          <div class="add-row">
+            <wa-input id="inpExcludedFunc" size="small" placeholder="e.g. internal_func" clearable title="C function name to exclude from generation"></wa-input>
+            <wa-button variant="brand" size="small" id="btnAddExcludedFunc" title="Add function to exclusion list"><wa-icon name="plus" library="system"></wa-icon></wa-button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <div class="sub-label">Function Renames</div>
+          <div id="renameList" class="item-list"></div>
+          <div id="renameCount" class="item-count"></div>
+          <div class="add-row">
+            <wa-input id="inpRenameOriginal" size="small" placeholder="Original" clearable title="Original C function name"></wa-input>
+            <span class="rename-arrow">→</span>
+            <wa-input id="inpRenameTarget" size="small" placeholder="New name" clearable title="New Delphi function name"></wa-input>
+            <wa-button variant="brand" size="small" id="btnAddRename" title="Add function rename mapping"><wa-icon name="plus" library="system"></wa-icon></wa-button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <div class="sub-label">Uses Units</div>
+          <div id="usesUnitList" class="item-list"></div>
+          <div id="usesUnitCount" class="item-count"></div>
+          <div class="add-row">
+            <wa-input id="inpUsesUnit" size="small" placeholder="e.g. sdl3" clearable title="Additional Delphi unit to add to the uses clause"></wa-input>
+            <wa-button variant="brand" size="small" id="btnAddUsesUnit" title="Add unit to uses clause"><wa-icon name="plus" library="system"></wa-icon></wa-button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Options + Generate -->
+      <div class="card">
+        <div class="card-title">
+          <wa-icon name="gear" library="system"></wa-icon>
+          Options
+        </div>
+        <wa-checkbox id="chkSavePreprocessed" title="Save the preprocessed C source alongside the generated .pas file">Save preprocessed output</wa-checkbox>
+      </div>
+
+    </div><!-- end .content -->
+
+    <!-- ── Drag handle ── -->
+    <div class="drag-handle" id="dragHandle" title="Drag to resize output panel"></div>
+
+    <!-- ── Log panel ── -->
+    <div class="log-wrapper" id="logWrapper">
+      <div class="log-header">
+        <div class="log-header-title">
+          <wa-icon name="terminal" library="system"></wa-icon>
+          Output
+        </div>
+        <button class="btn-clear-log" id="btnClearLog" title="Clear output log">Clear</button>
+      </div>
+      <div class="log-content" id="logPanel"></div>
+    </div>
+  </div><!-- end .main-area -->
+
+  <!-- ── Settings Dialog ── -->
+  <wa-dialog id="settingsDialog" label="Settings" style="--width:560px;">
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <div class="sub-label">TinyCC Path</div>
+        <div class="add-row">
+          <wa-input id="inpTccPath" size="small" placeholder="Relative or absolute path to tinycc folder" clearable title="Path to the folder containing tcc.exe for C preprocessing"></wa-input>
+          <wa-button variant="neutral" size="small" id="btnBrowseTcc" title="Browse for TinyCC folder">
+            <wa-icon name="folder-open" library="system"></wa-icon>
+          </wa-button>
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">
+          Path to the folder containing tcc.exe. Default: ..\..\..\tinycc (relative to exe)
+        </div>
+      </div>
+    </div>
+    <wa-button slot="footer" variant="neutral" id="btnSettingsCancel" title="Discard changes">Cancel</wa-button>
+    <wa-button slot="footer" variant="brand" id="btnSettingsSave" title="Save settings">Save</wa-button>
+  </wa-dialog>
+
+  <script>
+    const state = { includePaths:[], sourcePaths:[], excludedTypes:[], excludedFunctions:[], functionRenames:[], usesUnits:[], configPath:'', dirty:false };
+    function el(id) { return document.getElementById(id); }
+    function sendCmd(cmd, data) {
+      const msg = Object.assign({cmd}, data||{});
+      if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(JSON.stringify(msg));
+    }
+    function markDirty() {
+      if(!state.dirty) { state.dirty = true; sendCmd('dirty_changed', {dirty:true}); }
+    }
+    function clearDirty() {
+      if(state.dirty) { state.dirty = false; sendCmd('dirty_changed', {dirty:false}); }
+    }
+    function gatherConfig() {
+      return {
+        header: el('inpHeader').value||'', module_name: el('inpModuleName').value||'',
+        dll_name: el('inpDllName').value||'', dll_path: el('inpDllPath').value||'',
+        output_path: el('inpOutputPath').value||'',
+        save_preprocessed: el('chkSavePreprocessed').checked||false,
+        binding_modes: getSelectedModes(),
+        include_paths: state.includePaths.slice(), source_paths: state.sourcePaths.slice(),
+        excluded_types: state.excludedTypes.slice(), excluded_functions: state.excludedFunctions.slice(),
+        function_renames: state.functionRenames.slice(), uses_units: state.usesUnits.slice()
+      };
+    }
+    function getSelectedModes() {
+      return Array.from(document.querySelectorAll('.chip.active')).map(c => c.dataset.mode);
+    }
+    function renderList(id, countId, items, textFn, onRemove) {
+      const c = el(id); c.innerHTML = '';
+      items.forEach((item, i) => {
+        const row = document.createElement('div'); row.className = 'item-row';
+        const txt = document.createElement('span'); txt.className = 'item-text';
+        txt.textContent = textFn(item); txt.title = textFn(item);
+        const btn = document.createElement('button'); btn.className = 'item-remove';
+        btn.innerHTML = '×'; btn.title = 'Remove';
+        btn.addEventListener('click', () => { onRemove(i); });
+        row.appendChild(txt); row.appendChild(btn); c.appendChild(row);
+      });
+      if (countId) {
+        const ce = el(countId);
+        ce.textContent = items.length > 0 ? items.length + ' item' + (items.length > 1 ? 's' : '') : '';
+      }
+    }
+    function refreshLists() {
+      renderList('includePathList', 'includePathCount', state.includePaths,
+        item => item.path + (item.module ? ' ['+item.module+']' : ''),
+        i => { state.includePaths.splice(i,1); refreshLists(); markDirty(); });
+      renderList('sourcePathList', 'sourcePathCount', state.sourcePaths,
+        item => item,
+        i => { state.sourcePaths.splice(i,1); refreshLists(); markDirty(); });
+      renderList('excludedTypeList', 'excludedTypeCount', state.excludedTypes,
+        item => item,
+        i => { state.excludedTypes.splice(i,1); refreshLists(); markDirty(); });
+      renderList('excludedFuncList', 'excludedFuncCount', state.excludedFunctions,
+        item => item,
+        i => { state.excludedFunctions.splice(i,1); refreshLists(); markDirty(); });
+      renderList('usesUnitList', 'usesUnitCount', state.usesUnits,
+        item => item,
+        i => { state.usesUnits.splice(i,1); refreshLists(); markDirty(); });
+      renderList('renameList', 'renameCount', state.functionRenames,
+        item => item.original + ' → ' + item.rename_to,
+        i => { state.functionRenames.splice(i,1); refreshLists(); markDirty(); });
+    }
+    function appendLog(segs) {
+      const p = el('logPanel'), l = document.createElement('div');
+      l.className = 'log-line';
+      if (!segs || !segs.length) { l.classList.add('empty'); l.innerHTML = '&nbsp;'; }
+      else segs.forEach(s => { const sp = document.createElement('span'); sp.textContent = s.text; if(s.color) sp.style.color = s.color; l.appendChild(sp); });
+      p.appendChild(l); p.scrollTop = p.scrollHeight;
+    }
+    function populateFromConfig(cfg) {
+      if(cfg.header!==undefined) el('inpHeader').value = cfg.header;
+      if(cfg.module_name!==undefined) el('inpModuleName').value = cfg.module_name;
+      if(cfg.dll_name!==undefined) el('inpDllName').value = cfg.dll_name;
+      if(cfg.dll_path!==undefined) el('inpDllPath').value = cfg.dll_path;
+      if(cfg.output_path!==undefined) el('inpOutputPath').value = cfg.output_path;
+      if(cfg.save_preprocessed!==undefined) el('chkSavePreprocessed').checked = cfg.save_preprocessed;
+      if(Array.isArray(cfg.binding_modes) && cfg.binding_modes.length > 0) {
+        document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+        cfg.binding_modes.forEach(m => { const c = document.querySelector('.chip[data-mode="'+m+'"]'); if(c) c.classList.add('active'); });
+      }
+      if(Array.isArray(cfg.include_paths)) state.includePaths = cfg.include_paths;
+      if(Array.isArray(cfg.source_paths)) state.sourcePaths = cfg.source_paths;
+      if(Array.isArray(cfg.excluded_types)) state.excludedTypes = cfg.excluded_types;
+      if(Array.isArray(cfg.excluded_functions)) state.excludedFunctions = cfg.excluded_functions;
+      if(Array.isArray(cfg.function_renames)) state.functionRenames = cfg.function_renames;
+      if(Array.isArray(cfg.uses_units)) state.usesUnits = cfg.uses_units;
+      refreshLists();
+    }
+    function setGenerating(on) {
+      if(on) { document.body.classList.add('generating'); el('spinGenerate').style.display=''; el('btnGenerate').disabled=true; el('lblGenerateStatus').textContent='Generating...'; }
+      else { document.body.classList.remove('generating'); el('spinGenerate').style.display='none'; el('btnGenerate').disabled=false; }
+    }
+    function resetProject() {
+      el('inpHeader').value = '';
+      el('inpDllPath').value = '';
+      el('inpModuleName').value = '';
+      el('inpDllName').value = '';
+      el('inpOutputPath').value = '';
+      el('chkSavePreprocessed').checked = false;
+      state.includePaths = [];
+      state.sourcePaths = [];
+      state.excludedTypes = [];
+      state.excludedFunctions = [];
+      state.functionRenames = [];
+      state.usesUnits = [];
+      refreshLists();
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      document.querySelector('.chip[data-mode="static"]').classList.add('active');
+      el('projectName').textContent = ' - none';
+      el('logPanel').innerHTML = '';
+      el('lblGenerateStatus').textContent = '';
+      state.configPath = '';
+      clearDirty();
+    }
+
+    window.app = {
+      handleMessage: function(msg) {
+        if(msg.cmd==='browse_result') {
+          const map = {header:'inpHeader', dll_path:'inpDllPath', output_path:'inpOutputPath', include_path:'inpIncludePath', source_path:'inpSourcePath', tcc_path:'inpTccPath'};
+          if(map[msg.field]) { el(map[msg.field]).value = msg.path; markDirty(); }
+        }
+        else if(msg.cmd==='config_loaded') { populateFromConfig(msg.config); clearDirty(); }
+        else if(msg.cmd==='status') { if(msg.segments&&msg.segments.length) appendLog(msg.segments); else appendLog([{text:msg.text||'',color:''}]); }
+        else if(msg.cmd==='mode_complete') { const c=msg.success?'#4ade80':'#f87171', ic=msg.success?'✓':'✗'; appendLog([{text:ic+' '+msg.mode+': ',color:c},{text:msg.output,color:''}]); }
+        else if(msg.cmd==='all_complete') { setGenerating(false); const t=msg.results?msg.results.length:0, ok=msg.results?msg.results.filter(r=>r.success).length:0; el('lblGenerateStatus').textContent=ok+'/'+t+' completed'; appendLog([]); appendLog([{text:'═══ Generation complete ═══',color:'#6c8cff'}]); }
+        else if(msg.cmd==='error') { appendLog([{text:'✗ '+msg.message,color:'#f87171'}]); setGenerating(false); }
+        else if(msg.cmd==='set_log_height') { const h=Math.min(Math.max(msg.height||140,60),window.innerHeight*0.5); el('logWrapper').style.height=h+'px'; }
+        else if(msg.cmd==='set_project') { el('projectName').textContent = ' - ' + (msg.name || 'none'); if(msg.path) state.configPath = msg.path; clearDirty(); }
+        else if(msg.cmd==='set_app_settings') { el('inpTccPath').value = msg.tcc_path || ''; }
+      }
+    };
+    function addFromInput(inputId, arr, transform) {
+      const v = el(inputId).value.trim();
+      if(v) { arr.push(transform ? transform(v) : v); el(inputId).value = ''; refreshLists(); markDirty(); }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Chip toggle
+      document.querySelectorAll('.chip').forEach(chip => {
+        chip.addEventListener('click', () => { chip.classList.toggle('active'); markDirty(); });
+      });
+
+      // Track input changes for dirty flag
+      ['inpHeader','inpDllPath','inpModuleName','inpDllName','inpOutputPath'].forEach(id => {
+        el(id).addEventListener('wa-input', () => markDirty());
+      });
+      el('chkSavePreprocessed').addEventListener('wa-change', () => markDirty());
+
+      // Browse buttons
+      el('btnBrowseHeader').addEventListener('click', () => sendCmd('browse_header', {current_path: el('inpHeader').value}));
+      el('btnBrowseDll').addEventListener('click', () => sendCmd('browse_dll', {current_path: el('inpDllPath').value}));
+      el('btnBrowseOutput').addEventListener('click', () => sendCmd('browse_output', {current_path: el('inpOutputPath').value}));
+      el('btnBrowseInclude').addEventListener('click', () => sendCmd('browse_include', {current_path: el('inpIncludePath').value}));
+      el('btnBrowseSource').addEventListener('click', () => sendCmd('browse_source', {current_path: el('inpSourcePath').value}));
+
+      // Config
+      el('btnNewProject').addEventListener('click', () => resetProject());
+      el('btnLoadConfig').addEventListener('click', () => sendCmd('load_config', {current_path: state.configPath}));
+      el('btnSaveConfig').addEventListener('click', () => sendCmd('save_config', {config: gatherConfig(), current_path: state.configPath}));
+
+      // Generate
+      el('btnGenerate').addEventListener('click', () => {
+        const m = getSelectedModes();
+        if(!m.length) { appendLog([{text:'✗ No binding modes selected',color:'#f87171'}]); return; }
+        el('logPanel').innerHTML = ''; setGenerating(true);
+        sendCmd('generate', {config: gatherConfig(), modes: m});
+      });
+
+      // Add buttons
+      el('btnAddInclude').addEventListener('click', () => addFromInput('inpIncludePath', state.includePaths, v => ({path:v, module:''})));
+      el('btnAddSource').addEventListener('click', () => addFromInput('inpSourcePath', state.sourcePaths));
+      el('btnAddExcludedType').addEventListener('click', () => addFromInput('inpExcludedType', state.excludedTypes));
+      el('btnAddExcludedFunc').addEventListener('click', () => addFromInput('inpExcludedFunc', state.excludedFunctions));
+      el('btnAddUsesUnit').addEventListener('click', () => addFromInput('inpUsesUnit', state.usesUnits));
+      el('btnAddRename').addEventListener('click', () => {
+        const o = el('inpRenameOriginal').value.trim(), t = el('inpRenameTarget').value.trim();
+        if(o && t) { state.functionRenames.push({original:o, rename_to:t}); el('inpRenameOriginal').value=''; el('inpRenameTarget').value=''; refreshLists(); markDirty(); }
+      });
+
+      // Clear log
+      el('btnClearLog').addEventListener('click', () => { el('logPanel').innerHTML = ''; });
+
+      // Settings dialog
+      const dlg = el('settingsDialog');
+      el('btnSettings').addEventListener('click', () => { dlg.open = true; });
+      el('btnSettingsCancel').addEventListener('click', () => { dlg.open = false; });
+      el('btnBrowseTcc').addEventListener('click', () => sendCmd('browse_tcc'));
+      el('btnSettingsSave').addEventListener('click', () => {
+        sendCmd('save_app_settings', { tcc_path: el('inpTccPath').value.trim() });
+        dlg.open = false;
+      });
+
+      // Drag handle for resizable log panel
+      const handle = el('dragHandle');
+      const logWrap = el('logWrapper');
+      let dragging = false, startY = 0, startH = 0;
+      handle.addEventListener('mousedown', (e) => {
+        dragging = true; startY = e.clientY; startH = logWrap.offsetHeight;
+        handle.classList.add('dragging');
+        document.body.style.cursor = 'ns-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+      document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const delta = startY - e.clientY;
+        const newH = Math.min(Math.max(startH + delta, 60), window.innerHeight * 0.5);
+        logWrap.style.height = newH + 'px';
+      });
+      document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        handle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        sendCmd('log_height_changed', { height: Math.round(logWrap.offsetHeight) });
+      });
+
+      refreshLists();
+      sendCmd('ready');
+    });
+  </script>
+</body>
+</html>
