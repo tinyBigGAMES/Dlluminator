@@ -98,3 +98,4 @@ rename_utils.ps1
 /bin/res
 /tools/cimporter/bin/WebView2Data/EBWebView
 !/tools/cimporter/bin/WebView2Loader.dll
+tools/cimporter/bin/CImporter.toml
