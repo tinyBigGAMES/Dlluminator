@@ -259,6 +259,7 @@ type
     FOutputPath: string;
     FHeader: string;
     FLastError: string;
+    FTccPath: string;
 
     FStructs: TList<TDlmCStructInfo>;
     FEnums: TList<TDlmCEnumInfo>;
@@ -354,6 +355,7 @@ type
     procedure SetModuleName(const AName: string);
     procedure SetDllName(const ADllName: string);
     procedure SetDllPath(const ADllPath: string);
+    procedure SetTccPath(const ATccPath: string);
     procedure SetBindingMode(const AMode: TDlmBindingMode);
     function LoadFromConfig(const AFilename: string): Boolean;
     function SaveToConfig(const AFilename: string): Boolean;
@@ -834,6 +836,7 @@ begin
   FOutputPath := '';
   FHeader := '';
   FLastError := '';
+  FTccPath := '';
   FCurrentSourceFile := '';
   FBindingMode := bmStatic;
   FIndent := 0;
@@ -1066,7 +1069,10 @@ var
   LBase: string;
 begin
   LBase := TPath.GetDirectoryName(ParamStr(0));
-  Result := TPath.Combine(LBase, '..\tinycc\tcc.exe');
+  if FTccPath <> '' then
+    Result := TPath.GetFullPath(TPath.Combine(LBase, TPath.Combine(FTccPath, 'tcc.exe')))
+  else
+    Result := TPath.Combine(LBase, '..\tinycc\tcc.exe');
 end;
 
 function TDlmCImporter.PreprocessHeader(const AHeaderFile: string; out APreprocessedSource: string): Boolean;
@@ -4001,6 +4007,11 @@ begin
   FDllPath := ADllPath;
 end;
 
+procedure TDlmCImporter.SetTccPath(const ATccPath: string);
+begin
+  FTccPath := ATccPath;
+end;
+
 function TDlmCImporter.LoadFromConfig(const AFilename: string): Boolean;
 var
   LConfig: TDlmConfig;
@@ -4038,6 +4049,9 @@ begin
 
     if LConfig.HasKey('cimporter.dll_name') then
       SetDllName(LConfig.GetString('cimporter.dll_name'));
+
+    if LConfig.HasKey('cimporter.dll_path') then
+      SetDllPath(LConfig.GetString('cimporter.dll_path'));
 
     if LConfig.HasKey('cimporter.output_path') then
       SetOutputPath(LConfig.GetString('cimporter.output_path'));
@@ -4170,6 +4184,10 @@ begin
     // DLL name
     if FDllName <> '' then
       LConfig.SetString('cimporter.dll_name', FDllName);
+
+    // DLL path
+    if FDllPath <> '' then
+      LConfig.SetString('cimporter.dll_path', FDllPath);
 
     // Output path
     if FOutputPath <> '' then
@@ -4360,6 +4378,7 @@ begin
   FOutputPath := '';
   FHeader := '';
   FLastError := '';
+  FTccPath := '';
   FCurrentSourceFile := '';
   FBindingMode := bmStatic;
   FPos := 0;
