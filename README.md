@@ -62,6 +62,20 @@ Created and tested with **Delphi 12.3** on **Windows 11 64-bit (version 24H2)**.
 | **Dynamic Custom** | `"dynamic_custom"` | Exports `DlmBindExports(AHandle)` / `DlmUnbindExports` for manual handle management | No |
 | **Static VPK** | `"static_vpk"` | Exports `DlmBindExports(AVFS, AFilename)` / `DlmUnbindExports` for loading from Virtuoso VPK archives | Yes |
 
+**CImporter GUI Tool**
+
+![CImporter](media/cimporter.png)
+
+The CImporter standalone desktop application provides a visual interface for configuring and running the CImporter engine. It is built with Delphi and WebView2 and is located in `tools/cimporter/`.
+
+- Set header files, DLL paths, output paths, include/source paths, excluded types, excluded functions, function renames, and uses units through the UI.
+- Select one or more binding modes and generate all variants in a single run.
+- Save and load project configurations as TOML files for reproducible builds.
+- Real-time output log shows preprocessing, parsing, and generation progress with color-coded status.
+- Resizable output panel, per-project settings persistence, and dirty-state tracking with close confirmation.
+
+The tool uses the same `TDlmCImporter` engine as the programmatic API. The executable is located at `tools/cimporter/bin/CImporter.exe` and requires `WebView2Loader.dll` and the `html/` folder alongside it.
+
 ### How Dependency Resolution Works
 
 A common problem with memory-loaded DLLs is that the Windows loader cannot resolve imports between them. If `sdl3_image.dll` imports functions from `sdl3.dll`, and both are loaded from memory, the loader has no way to find `sdl3.dll` by name because it was never loaded from disk.
@@ -93,7 +107,7 @@ repo/
     tcc.exe                     C compiler/preprocessor
     libtcc.dll                  tinycc shared library
     include/                    C standard headers + Windows SDK headers
-  libs/                       C library packages for CImporter
+  libs/                         C library packages for CImporter
     raylib/                     raylib headers, DLL, and TOML config
     sdl3/                       SDL3 headers, DLL, and TOML config
     sdl3_image/                 SDL3_image headers, DLL, and TOML config
@@ -106,7 +120,12 @@ repo/
   examples/
     ImportLibs/                 Example: generate imports from C headers
     TestImports/                Example: use generated imports with Dlluminator
-  bin/                        Built executables
+  tools/
+    cimporter/                  CImporter GUI tool (WebView2-based desktop app)
+      bin/                      Built executable + WebView2Loader.dll
+      html/                     Frontend UI (HTML/JS/CSS + Web Awesome)
+      src/                      Delphi source (UMainForm.pas, UMessageProtocol.pas)
+  bin/                          Built executables
 ```
 
 ### Example: CImporter Usage
@@ -116,7 +135,6 @@ Generate Delphi bindings for raylib from its C header:
 ```delphi
 uses
   Dlluminator.CImporter;
-
 var
   LImporter: TDlmCImporter;
 begin
@@ -134,27 +152,27 @@ begin
     // Save config for reproducible builds
     LImporter.SaveToConfig('..\libs\raylib\raylib.toml');
 
-    if LImporter.Process() then
-      WriteLn('Success')
-    else
-      WriteLn('Failed: ', LImporter.GetLastError());
+   if LImporter.Process() then
+    WriteLn('Success')
+  else
+    WriteLn('Failed: ', LImporter.GetLastError());
   finally
     LImporter.Free();
   end;
 end;
 ```
-
 This produces `raylib.pas` (the Delphi import unit), `raylib.rc` (resource script), and `raylib.RES` (compiled resource embedding the DLL). Add `raylib.pas` to your project, link the `.RES`, and call raylib functions directly from Delphi. The DLL loads from the embedded resource at program startup.
 
-For libraries with dependencies, use `AddUsesUnit` to reference an already-generated unit:
+For libraries with dependencies, use `AddUsesUnit` to reference an already-generated unit:  
 
 ```delphi
-// sdl3_image depends on sdl3 , tell CImporter about it
+// sdl3_image depends on sdl3, tell CImporter about it
 LImporter.SetModuleName('sdl3_image');
 LImporter.SetDllName('sdl3_image');
 LImporter.AddIncludePath('..\libs\sdl3\include', 'sdl3');
-LImporter.AddUsesUnit('sdl3'); LImporter.SetHeader('..\\libs\\sdl3_image\\include\\SDL3\\SDL_image.h'); LImporter.Process();
-
+LImporter.AddUsesUnit('sdl3');
+LImporter.SetHeader('..\libs\sdl3_image\include\SDL3\SDL_image.h');
+LImporter.Process();
 ```
 
 The generated `sdl3_image.pas` will include `sdl3` in its `uses` clause and register both DLLs for dependency-aware loading.
@@ -171,6 +189,7 @@ LImporter.SetBindingMode(bmDynamic);  // Standard external linking, no Dlluminat
 LImporter.SetHeader('..\libs\raylib\include\raylib.h');
 LImporter.Process();
 ```
+
 The generated unit uses `external CDllName` declarations instead of function pointer variables. No `.rc`/`.RES` files are produced. The DLL must be available to the Windows loader at runtime. The same setting can be specified in TOML with `binding_mode = "dynamic"`.
 
 Available binding modes for `SetBindingMode`:
@@ -184,10 +203,10 @@ Available binding modes for `SetBindingMode`:
 ### Example: Using Generated Imports
 
 Once the import units are generated, using them is straightforward. The DLLs load from embedded resources automatically:
-```
+
 ```delphi
 uses
-  raylib;  // Generated by CImporter , DLL loads at startup
+  raylib;  // Generated by CImporter, DLL loads at startup
 
 begin
   InitWindow(800, 450, 'Dlluminator - Raylib');
@@ -309,17 +328,24 @@ After loading, use standard `GetProcAddress` and `FreeLibrary` as with any DLL.
 | `SetDllPath(APath)` | Set path to the actual DLL binary (embedded as resource in static mode). |
 | `SetBindingMode(AMode)` | Set the binding mode (`bmStatic`, `bmDynamic`, `bmDynamicDelayed`, `bmDynamicCustom`, `bmStaticVpk`). |
 | `SetOutputPath(APath)` | Set output directory for generated files. |
-| `AddIncludePath(APath[, ATag])` | Add a C include search path. |
+| `SetTccPath(APath)` | Set path to the tinycc folder (containing `tcc.exe`). |
+| `AddIncludePath(APath[, AModule])` | Add a C include search path, optionally tagging it with a module name. |
 | `AddSourcePath(APath)` | Add a source filter path (only declarations from these paths are emitted). |
 | `AddUsesUnit(AUnit)` | Add a unit to the generated `uses` clause (for cross-unit dependencies). |
 | `AddExcludedType(AName)` | Exclude a C type/define from output. |
+| `AddExcludedFunction(AName)` | Exclude a C function from output. |
 | `AddFunctionRename(AOld, ANew)` | Rename a function to avoid Delphi keyword conflicts. |
-| `InsertFileBefore(AMarker, AFilePath)` | Insert file content before a marker in the generated unit. |
+| `InsertTextBefore(AMarker, AText[, AOccurrence])` | Insert text content before a marker line in the generated unit. |
+| `InsertTextAfter(AMarker, AText[, AOccurrence])` | Insert text content after a marker line in the generated unit. |
+| `InsertFileBefore(AMarker, AFilePath[, AOccurrence])` | Insert file content before a marker in the generated unit. |
+| `InsertFileAfter(AMarker, AFilePath[, AOccurrence])` | Insert file content after a marker in the generated unit. |
+| `ReplaceText(AOld, ANew[, AOccurrence])` | Replace text in the generated output. `AOccurrence=0` replaces all. |
 | `SetSavePreprocessed(AValue)` | Save the preprocessed C output for debugging. |
 | `SaveToConfig(APath)` | Save configuration to a TOML file. |
 | `LoadFromConfig(APath)` | Load configuration from a TOML file (including `binding_mode`). |
 | `Process()` | Run the import generation. Returns `True` on success. |
 | `GetLastError()` | Get the error message if `Process` returned `False`. |
+| `Clear()` | Reset all settings and internal state. |
 
 ### Usage Scenarios
 
