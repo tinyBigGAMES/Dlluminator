@@ -9,6 +9,9 @@
         <Projects Include="..\examples\TestImports\TestImports.dproj">
             <Dependencies/>
         </Projects>
+        <Projects Include="..\tools\cimporter\src\CImporter.dproj">
+            <Dependencies/>
+        </Projects>
     </ItemGroup>
     <ProjectExtensions>
         <Borland.Personality>Default.Personality.12</Borland.Personality>
@@ -35,14 +38,23 @@
     <Target Name="TestImports:Make">
         <MSBuild Projects="..\examples\TestImports\TestImports.dproj" Targets="Make"/>
     </Target>
+    <Target Name="CImporter">
+        <MSBuild Projects="..\tools\cimporter\src\CImporter.dproj"/>
+    </Target>
+    <Target Name="CImporter:Clean">
+        <MSBuild Projects="..\tools\cimporter\src\CImporter.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="CImporter:Make">
+        <MSBuild Projects="..\tools\cimporter\src\CImporter.dproj" Targets="Make"/>
+    </Target>
     <Target Name="Build">
-        <CallTarget Targets="ImportLibs;TestImports"/>
+        <CallTarget Targets="ImportLibs;TestImports;CImporter"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="ImportLibs:Clean;TestImports:Clean"/>
+        <CallTarget Targets="ImportLibs:Clean;TestImports:Clean;CImporter:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="ImportLibs:Make;TestImports:Make"/>
+        <CallTarget Targets="ImportLibs:Make;TestImports:Make;CImporter:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>
