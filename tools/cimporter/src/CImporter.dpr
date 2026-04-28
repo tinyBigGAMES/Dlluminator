@@ -1,4 +1,13 @@
-﻿program CImporter;
+﻿{===============================================================================
+  Dlluminator™ - Win64 Memory DLL Loader
+
+  Copyright © 2025-present tinyBigGAMES™ LLC
+  All Rights Reserved.
+
+  See LICENSE for license information
+===============================================================================}
+
+program CImporter;
 
 uses
   Vcl.Forms,
